@@ -1,0 +1,8 @@
+[project]
+name = "content-builder"
+version = "0.1.0"
+description = "Create Snowflake-branded presentations in Marp and PPTX formats"
+requires-python = ">=3.11"
+dependencies = [
+    "python-pptx>=0.6.21",
+]
