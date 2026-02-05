@@ -7,6 +7,8 @@ description: "Create professional Snowflake-branded presentations. Use when: use
 
 Create Snowflake-branded presentations in Marp (HTML/PDF) or PPTX format.
 
+**Default format: Marp** - Use Marp unless user explicitly requests PPTX.
+
 ## Setup
 
 **Load** `references/style_guide.md` for brand colors, typography, and layout patterns.
@@ -23,9 +25,10 @@ What presentation do you need?
 2. Subtitle/tagline:
 3. Audience/Event:
 4. Presenter name:
-5. Output format: (marp/pptx/both)
-6. Brief outline or topic areas:
+5. Brief outline or topic areas:
 ```
+
+**Note:** Default to Marp format. Only ask about format if user mentions PPTX or PowerPoint.
 
 **⚠️ STOP**: Wait for user input.
 
@@ -44,16 +47,16 @@ Based on user input, propose a slide outline:
 
 ### Step 3: Generate Presentation
 
-**If Marp format:**
+**Default: Marp format (recommended)**
 1. Copy `<SKILL_DIR>/assets/marp_base.md` to user's project
-2. Customize content while preserving CSS styling
+2. Customize content while preserving the ENTIRE CSS styling block (lines 1-294)
 3. Generate output:
    ```bash
    npx --yes @marp-team/marp-cli <file>.md -o <output>.html
    npx --yes @marp-team/marp-cli <file>.md -o <output>.pdf --allow-local-files
    ```
 
-**If PPTX format:**
+**If user explicitly requests PPTX:**
 1. Copy `<SKILL_DIR>/assets/pptx_base.py` to user's project
 2. Customize the SLIDES section with user content
 3. Run:
