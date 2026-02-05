@@ -1,11 +1,11 @@
 ---
 name: content-builder
-description: "Create professional Snowflake-branded presentations and reports. Use when: user wants to create slides, build a presentation, make a deck, generate PPTX, create Marp slides, or generate TPC-DS benchmark reports. Triggers: create presentation, build slides, make pptx, snowflake deck, create deck, presentation template, tpcds report, benchmark report, gap analysis report."
+description: "Create professional Snowflake-branded presentations. Use when: user wants to create slides, build a presentation, make a deck, generate PPTX, or create Marp slides. Triggers: create presentation, build slides, make pptx, snowflake deck, create deck, presentation template."
 ---
 
 # Content Builder
 
-Create Snowflake-branded presentations in Marp (HTML/PDF) or PPTX format, or TPC-DS benchmark reports in HTML.
+Create Snowflake-branded presentations in Marp (HTML/PDF) or PPTX format.
 
 ## Setup
 
