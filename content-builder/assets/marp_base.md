@@ -214,6 +214,65 @@ style: |
     font-size: 0.65em;
     font-weight: bold;
   }
+  /* Utility classes */
+  .green-text { color: #32963C; }
+  .red-text { color: #B43232; }
+  .blue-text { color: var(--sf-blue); }
+  /* Layout helpers */
+  .columns {
+    display: flex;
+    gap: 30px;
+  }
+  .columns > div {
+    flex: 1;
+  }
+  .metric-grid {
+    display: flex;
+    gap: 30px;
+    justify-content: center;
+    margin-top: 30px;
+  }
+  .metric-box {
+    background: var(--sf-light-bg);
+    border-radius: 12px;
+    padding: 20px 40px;
+    text-align: center;
+    border: 2px solid #D0E8F5;
+  }
+  .metric-value {
+    font-size: 2.2em;
+    font-weight: bold;
+    color: var(--sf-dark-blue);
+  }
+  .metric-label {
+    font-size: 0.8em;
+    color: var(--sf-gray);
+    margin-top: 5px;
+  }
+  /* Callout boxes */
+  .callout {
+    background: #FFF3E0;
+    border-left: 4px solid #FF9800;
+    padding: 10px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 15px 0;
+    font-size: 0.85em;
+  }
+  .callout-success {
+    background: #E8F5E9;
+    border-left-color: #4CAF50;
+  }
+  .callout-danger {
+    background: #FFEBEE;
+    border-left-color: #B43232;
+  }
+  /* Compact tables */
+  section.compact table {
+    font-size: 0.60em;
+  }
+  section.compact td, section.compact th {
+    padding: 4px 8px;
+  }
 ---
 
 <!-- _class: title -->

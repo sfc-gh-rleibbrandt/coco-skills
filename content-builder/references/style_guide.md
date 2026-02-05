@@ -383,6 +383,57 @@ pip install python-pptx
 
 ---
 
+## Utility Classes
+
+### Text Colors
+| Class | Color | Usage |
+|-------|-------|-------|
+| `.green-text` | `#32963C` | Success, positive numbers |
+| `.red-text` | `#B43232` | Error, negative/warning |
+| `.blue-text` | `#29B5E8` | Accent, links |
+
+### Layout Helpers
+| Class | Description |
+|-------|-------------|
+| `.columns` | Two-column flex layout with 30px gap |
+| `.metric-grid` | Centered flex container for metric boxes |
+| `.metric-box` | Styled box with border for KPIs |
+| `.metric-value` | Large bold number inside metric-box |
+| `.metric-label` | Small gray label inside metric-box |
+
+### Callout Boxes
+| Class | Background | Border | Usage |
+|-------|------------|--------|-------|
+| `.callout` | Orange tint | Orange | Warnings, notes |
+| `.callout-success` | Green tint | Green | Success, recommendations |
+| `.callout-danger` | Red tint | Red | Errors, problems |
+
+### Table Variants
+| Class | Effect |
+|-------|--------|
+| `section.compact` | Smaller table font (0.60em) and padding |
+
+### Example Usage
+```html
+<div class="metric-grid">
+  <div class="metric-box">
+    <div class="metric-value">5,520</div>
+    <div class="metric-label">Total Items</div>
+  </div>
+</div>
+
+<div class="columns">
+  <div>Left column content</div>
+  <div>Right column content</div>
+</div>
+
+<div class="callout-success">
+  <strong>Recommendation:</strong> Do this thing.
+</div>
+```
+
+---
+
 ## Key Design Decisions
 
 1. **Fixed headers**: Ensures visual consistency across slides
