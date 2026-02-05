@@ -413,6 +413,13 @@ pip install python-pptx
 |-------|--------|
 | `section.compact` | Smaller table font (0.60em) and padding |
 
+### Flow Diagrams
+| Class | Description |
+|-------|-------------|
+| `.flow-diagram` | Flex container for horizontal flow diagrams |
+| `.flow-box` | Rounded box for flow diagram nodes |
+| `.flow-arrow` | Large gray arrow between flow boxes |
+
 ### Example Usage
 ```html
 <div class="metric-grid">
@@ -429,6 +436,12 @@ pip install python-pptx
 
 <div class="callout-success">
   <strong>Recommendation:</strong> Do this thing.
+</div>
+
+<div class="flow-diagram">
+  <div class="flow-box" style="background: #E8F4FC;">Input</div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-box" style="background: #E8F5E9;">Output</div>
 </div>
 ```
 

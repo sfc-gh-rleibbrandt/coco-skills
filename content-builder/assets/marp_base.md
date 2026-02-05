@@ -273,6 +273,24 @@ style: |
   section.compact td, section.compact th {
     padding: 4px 8px;
   }
+  /* Flow diagrams */
+  .flow-diagram {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    margin: 20px 0;
+  }
+  .flow-box {
+    padding: 15px 25px;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: 600;
+  }
+  .flow-arrow {
+    font-size: 2em;
+    color: var(--sf-gray);
+  }
 ---
 
 <!-- _class: title -->
