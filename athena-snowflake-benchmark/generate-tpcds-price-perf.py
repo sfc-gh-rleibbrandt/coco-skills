@@ -16,8 +16,8 @@ Tabs: Overview | EE Analysis | SE Analysis | Graphs | Head-to-Head | SF Scaling 
 
 Usage:
     python generate-tpcds-price-perf.py \
-        --sf-runs 3761057,3761059,3761060,3760798,3761053,3761056 \
-        --sf-sizes S,M,L,XL,2XL,3XL \
+        --sf-runs 3761057,3761059,3761060,3760798,3761053 \
+        --sf-sizes S,M,L,XL,2XL \
         --competitor-run 3473166 \
         --competitor-name "Athena" \
         --competitor-cost 10.30 \
@@ -40,6 +40,14 @@ try:
 except ImportError:
     print("ERROR: snowflake-connector-python required. Install with: pip install snowflake-connector-python")
     sys.exit(1)
+
+# Shared TPC-DS category utilities
+from tpcds_categories import (
+    QUERY_CLASSIFICATIONS as SHARED_QUERY_CLASSIFICATIONS,
+    calc_category_geomean, calc_category_total,
+    build_category_breakdown, render_category_table_html,
+    render_size_category_sections_html, get_category, get_category_queries
+)
 
 
 # =============================================================================
@@ -520,6 +528,361 @@ def compute_scaling_efficiency(sf_data: Dict, all_queries: List[str]) -> Dict[st
     return results
 
 
+# =============================================================================
+# DUAL-ANCHOR TIER FUNCTIONS (Price Anchor + Performance Anchor)
+# =============================================================================
+
+def build_athena_price_tiers(sf_stats: Dict, num_tiers: int = 4) -> List[Dict]:
+    """
+    Build price tiers from SF hourly rates using log-spacing.
+
+    Since the competitor is serverless (single price point), tiers are derived
+    entirely from SF's rate range. Each tier answers: "At this hourly budget,
+    how does SF compare to the serverless competitor?"
+    """
+    import numpy as np
+
+    sf_rates = sorted([s['hourly_rate'] for s in sf_stats.values()
+                       if s.get('hourly_rate') and s['hourly_rate'] > 0])
+    if not sf_rates:
+        return []
+
+    # Log-spaced centres across SF's rate range
+    centres = np.geomspace(sf_rates[0], sf_rates[-1], num_tiers)
+
+    def _nice(x):
+        if x < 10:
+            return round(x)
+        elif x < 100:
+            return round(x / 5) * 5
+        else:
+            return round(x / 10) * 10
+
+    tiers = []
+    for i, c in enumerate(centres):
+        if i == 0:
+            lo = 0
+            hi = (c + centres[i + 1]) / 2 if i + 1 < len(centres) else c * 1.5
+        elif i == len(centres) - 1:
+            lo = (centres[i - 1] + c) / 2
+            hi = c * 1.5
+        else:
+            lo = (centres[i - 1] + c) / 2
+            hi = (c + centres[i + 1]) / 2
+
+        lo_nice = _nice(lo) if lo > 0 else 0
+        hi_nice = _nice(hi)
+        tiers.append({'label': f'~${lo_nice}-{hi_nice}/hr', 'min': lo_nice, 'max': hi_nice})
+
+    return tiers[:num_tiers]
+
+
+def build_athena_perf_tiers(sf_stats: Dict, comp_geomean: float,
+                            num_tiers: int = 4) -> List[Dict]:
+    """
+    Build performance (SLA) tiers using log-spacing across the full latency range.
+
+    Tiers start just above the fastest config (SF or competitor) and extend
+    to the slowest. Tight SLAs expose capability gaps; loose SLAs expose cost
+    differences.
+    """
+    import numpy as np
+
+    sf_geomeans = [s['geomean'] for s in sf_stats.values()
+                   if s.get('geomean') and s['geomean'] > 0]
+    if not sf_geomeans:
+        return []
+
+    fastest = min(min(sf_geomeans), comp_geomean) if comp_geomean > 0 else min(sf_geomeans)
+    slowest = max(max(sf_geomeans), comp_geomean) if comp_geomean > 0 else max(sf_geomeans)
+
+    min_sla = fastest * 1.1   # 10 % buffer above fastest
+    max_sla = slowest * 1.05  # just above slowest
+
+    targets = np.geomspace(min_sla, max_sla, num_tiers)
+
+    def _nice(x):
+        if x < 10:
+            return round(x)
+        elif x < 100:
+            return round(x / 5) * 5
+        else:
+            return round(x / 10) * 10
+
+    tiers = []
+    seen = set()
+    for t in targets:
+        n = _nice(t)
+        if n not in seen:
+            seen.add(n)
+            tiers.append({'label': f'≤{n}s SLA', 'target': n})
+
+    return tiers[:num_tiers]
+
+
+def build_price_tier_comparisons(sf_data: Dict, sf_stats: Dict,
+                                 comp_times: Dict[str, float],
+                                 comp_cost: float, comp_geomean: float,
+                                 comp_total: float,
+                                 competitor_name: str) -> List[Dict]:
+    """
+    For each price tier, find the best SF config and compare vs the serverless
+    competitor (which is the same at every tier).
+    """
+    tiers = build_athena_price_tiers(sf_stats)
+    comparisons = []
+
+    for tier in tiers:
+        # Find best-performing SF size in this hourly-rate range
+        best_sf_size = None
+        best_sf = None
+        for size, st in sf_stats.items():
+            if size == competitor_name:
+                continue
+            hr = st.get('hourly_rate', 0)
+            if tier['min'] <= hr <= tier['max']:
+                if best_sf is None or st['geomean'] < best_sf['geomean']:
+                    best_sf_size = size
+                    best_sf = st
+
+        if best_sf is None:
+            continue  # no SF config in this tier
+
+        # Winner by geomean
+        if best_sf['geomean'] < comp_geomean:
+            winner = 'SF'
+            ratio = round(comp_geomean / best_sf['geomean'], 2)
+        else:
+            winner = competitor_name
+            ratio = round(best_sf['geomean'] / comp_geomean, 2)
+
+        # Category breakdown
+        sf_times = sf_data[best_sf_size]['times']
+        categories = []
+        for cat in QUERY_CLASSIFICATIONS:
+            from tpcds_categories import calc_category_geomean as _cg, calc_category_total as _ct
+            sf_cg = _cg(sf_times, cat)
+            comp_cg = _cg(comp_times, cat)
+            sf_ct = _ct(sf_times, cat)
+            comp_ct = _ct(comp_times, cat)
+
+            if sf_cg > 0 and comp_cg > 0:
+                cat_winner = 'SF' if sf_cg < comp_cg else competitor_name
+                cat_ratio = round(comp_cg / sf_cg, 2) if cat_winner == 'SF' else round(sf_cg / comp_cg, 2)
+            else:
+                cat_winner = '-'
+                cat_ratio = 0
+
+            categories.append({
+                'category': cat,
+                'count': len(QUERY_CLASSIFICATIONS[cat]),
+                'sf_geomean': sf_cg, 'sf_total': sf_ct,
+                'comp_geomean': comp_cg, 'comp_total': comp_ct,
+                'winner': cat_winner, 'ratio': cat_ratio
+            })
+
+        comparisons.append({
+            'tier': tier['label'],
+            'sf_size': best_sf_size,
+            'sf_geomean': best_sf['geomean'],
+            'sf_total': best_sf['total'],
+            'sf_cost': best_sf['cost'],
+            'sf_hourly': best_sf['hourly_rate'],
+            'comp_geomean': comp_geomean,
+            'comp_total': comp_total,
+            'comp_cost': comp_cost,
+            'winner': winner, 'ratio': ratio,
+            'categories': categories
+        })
+
+    return comparisons
+
+
+def build_perf_tier_comparisons(sf_data: Dict, sf_stats: Dict,
+                                comp_times: Dict[str, float],
+                                comp_cost: float, comp_geomean: float,
+                                comp_hourly: float,  # 0 for serverless
+                                competitor_name: str) -> List[Dict]:
+    """
+    For each SLA tier, find the cheapest SF config that meets it and check
+    whether the competitor can also meet it. Exposes capability gaps.
+    """
+    tiers = build_athena_perf_tiers(sf_stats, comp_geomean)
+    comparisons = []
+
+    for tier in tiers:
+        target = tier['target']
+
+        # Cheapest SF that meets SLA
+        sf_size = None
+        sf_best = None
+        for size, st in sf_stats.items():
+            if size == competitor_name:
+                continue
+            if st['geomean'] <= target:
+                if sf_best is None or st['hourly_rate'] < sf_best['hourly_rate']:
+                    sf_size = size
+                    sf_best = st
+
+        # Does competitor meet the SLA?
+        comp_meets = comp_geomean <= target
+
+        # Determine winner (by cost) and build entry
+        entry = {'tier': tier['label'], 'sla_target': target}
+
+        if sf_best and comp_meets:
+            # Both meet — compare costs (run cost for a fair single-run comparison)
+            if sf_best['cost'] < comp_cost:
+                winner = 'SF'
+                savings = round((1 - sf_best['cost'] / comp_cost) * 100)
+            else:
+                winner = competitor_name
+                savings = round((1 - comp_cost / sf_best['cost']) * 100)
+
+            entry.update({
+                'sf_size': sf_size, 'sf_geomean': sf_best['geomean'],
+                'sf_hourly': sf_best['hourly_rate'], 'sf_cost': sf_best['cost'],
+                'comp_geomean': comp_geomean, 'comp_cost': comp_cost,
+                'comp_meets': True,
+                'winner': winner, 'savings': savings,
+                'capability_gap': False,
+            })
+        elif sf_best and not comp_meets:
+            # Only SF meets — capability gap
+            entry.update({
+                'sf_size': sf_size, 'sf_geomean': sf_best['geomean'],
+                'sf_hourly': sf_best['hourly_rate'], 'sf_cost': sf_best['cost'],
+                'comp_geomean': comp_geomean, 'comp_cost': comp_cost,
+                'comp_meets': False,
+                'winner': 'SF', 'savings': 100,
+                'capability_gap': True,
+            })
+        elif not sf_best and comp_meets:
+            # Only competitor meets
+            entry.update({
+                'sf_size': '—', 'sf_geomean': 0, 'sf_hourly': 0, 'sf_cost': 0,
+                'comp_geomean': comp_geomean, 'comp_cost': comp_cost,
+                'comp_meets': True,
+                'winner': competitor_name, 'savings': 100,
+                'capability_gap': True,
+            })
+        else:
+            continue  # neither meets — skip tier
+
+        # Category breakdown (only if SF has a config)
+        cats = []
+        if sf_size:
+            sf_times = sf_data[sf_size]['times']
+            for cat in QUERY_CLASSIFICATIONS:
+                from tpcds_categories import calc_category_geomean as _cg, calc_category_total as _ct
+                sf_cg = _cg(sf_times, cat)
+                comp_cg = _cg(comp_times, cat)
+                sf_ct = _ct(sf_times, cat)
+                comp_ct = _ct(comp_times, cat)
+
+                if sf_cg > 0 and comp_cg > 0:
+                    cat_winner = 'SF' if sf_cg < comp_cg else competitor_name
+                    cat_ratio = (round(comp_cg / sf_cg, 2) if cat_winner == 'SF'
+                                 else round(sf_cg / comp_cg, 2))
+                else:
+                    cat_winner = '-'
+                    cat_ratio = 0
+
+                cats.append({
+                    'category': cat,
+                    'count': len(QUERY_CLASSIFICATIONS[cat]),
+                    'sf_geomean': sf_cg, 'sf_total': sf_ct,
+                    'comp_geomean': comp_cg, 'comp_total': comp_ct,
+                    'winner': cat_winner, 'ratio': cat_ratio
+                })
+        entry['categories'] = cats
+        comparisons.append(entry)
+
+    return comparisons
+
+
+def calculate_dual_anchor_okr(price_tier_comparisons: List[Dict],
+                              perf_tier_comparisons: List[Dict],
+                              competitor_name: str) -> Dict:
+    """
+    Calculate OKR metrics using both anchors, matching the DBX report pattern.
+
+    Cost anchor: At same budget, who has better price:perf score?
+    Perf anchor: At same SLA, who's cheaper?
+    """
+    target = OKR_TARGET  # 35 %
+
+    # === COST ANCHOR ===
+    cost_advantages = []
+    for t in price_tier_comparisons:
+        sf_score = t['sf_cost'] * t['sf_geomean']
+        comp_score = t['comp_cost'] * t['comp_geomean']
+        adv = round((1 - sf_score / comp_score) * 100, 1) if comp_score > 0 else 0
+        cost_advantages.append({
+            'tier': t['tier'],
+            'sf_score': round(sf_score, 1), 'comp_score': round(comp_score, 1),
+            'advantage': adv,
+            'sf_size': t['sf_size'], 'sf_hourly': t['sf_hourly'],
+            'sf_geomean': t['sf_geomean'],
+            'comp_geomean': t['comp_geomean'],
+        })
+
+    cost_avg = (round(sum(a['advantage'] for a in cost_advantages) / len(cost_advantages), 1)
+                if cost_advantages else 0)
+    cost_meeting = sum(1 for a in cost_advantages if a['advantage'] >= target)
+
+    # === PERF ANCHOR ===
+    perf_advantages = []
+    for p in perf_tier_comparisons:
+        if p.get('capability_gap') and p['winner'] == 'SF' and not p.get('comp_meets', True):
+            adv = 100.0  # competitor can't meet SLA — maximum advantage
+        elif p['winner'] == 'SF':
+            adv = float(p['savings'])
+        else:
+            adv = -float(p['savings'])
+        perf_advantages.append({
+            'tier': p['tier'],
+            'advantage': adv,
+            'sf_size': p['sf_size'],
+            'sf_hourly': p.get('sf_hourly', 0),
+            'sf_geomean': p.get('sf_geomean', 0),
+            'sf_cost': p.get('sf_cost', 0),
+            'comp_geomean': p.get('comp_geomean', 0),
+            'comp_cost': p.get('comp_cost', 0),
+            'capability_gap': p.get('capability_gap', False),
+            'comp_meets': p.get('comp_meets', True),
+        })
+
+    perf_avg = (round(sum(a['advantage'] for a in perf_advantages) / len(perf_advantages), 1)
+                if perf_advantages else 0)
+    perf_meeting = sum(1 for a in perf_advantages if a['advantage'] >= target)
+
+    def _grade(avg):
+        score = min(avg / target, 1.0) if target > 0 else 0
+        pct = score * 100
+        if score >= 0.9:
+            return f'🟢 {pct:.0f}%', 'okr-green'
+        elif score >= 0.7:
+            return f'🟡 {pct:.0f}%', 'okr-yellow'
+        else:
+            return f'🔴 {pct:.0f}%', 'okr-red'
+
+    cost_grade, cost_class = _grade(cost_avg)
+    perf_grade, perf_class = _grade(perf_avg)
+
+    return {
+        'target': target,
+        'cost_average': cost_avg, 'cost_grade': cost_grade,
+        'cost_grade_class': cost_class,
+        'cost_advantages': cost_advantages,
+        'cost_meeting': cost_meeting, 'cost_total': len(cost_advantages),
+        'perf_average': perf_avg, 'perf_grade': perf_grade,
+        'perf_grade_class': perf_class,
+        'perf_advantages': perf_advantages,
+        'perf_meeting': perf_meeting, 'perf_total': len(perf_advantages),
+    }
+
+
 def compute_okr_metrics(stats: Dict, sf_sizes: List[str], comp_score: float,
                         competitor_name: str) -> Dict:
     """Compute OKR scorecard metrics for a single-point competitor."""
@@ -622,6 +985,29 @@ def generate_html(
     budget_match_ee = find_budget_match(stats_ee, sf_sizes, competitor_data['cost'])
     sla_match_se = find_sla_match(stats_se, sf_sizes, stats_se[competitor_name]['geomean'])
     sla_match_ee = find_sla_match(stats_ee, sf_sizes, stats_ee[competitor_name]['geomean'])
+
+    # --- Dual-anchor tier comparisons (per edition) ---
+    comp_geomean_val = stats_se[competitor_name]['geomean']
+    comp_total_val = stats_se[competitor_name]['total']
+    comp_cost_val = competitor_data['cost']
+
+    price_tiers_se = build_price_tier_comparisons(
+        sf_data, stats_se, competitor_data['times'],
+        comp_cost_val, comp_geomean_val, comp_total_val, competitor_name)
+    price_tiers_ee = build_price_tier_comparisons(
+        sf_data, stats_ee, competitor_data['times'],
+        comp_cost_val, stats_ee[competitor_name]['geomean'],
+        stats_ee[competitor_name]['total'], competitor_name)
+
+    perf_tiers_se = build_perf_tier_comparisons(
+        sf_data, stats_se, competitor_data['times'],
+        comp_cost_val, comp_geomean_val, 0, competitor_name)
+    perf_tiers_ee = build_perf_tier_comparisons(
+        sf_data, stats_ee, competitor_data['times'],
+        comp_cost_val, stats_ee[competitor_name]['geomean'], 0, competitor_name)
+
+    dual_okr_se = calculate_dual_anchor_okr(price_tiers_se, perf_tiers_se, competitor_name)
+    dual_okr_ee = calculate_dual_anchor_okr(price_tiers_ee, perf_tiers_ee, competitor_name)
 
     # Scaling efficiency (independent of pricing)
     scaling = compute_scaling_efficiency(sf_data, all_queries)
@@ -824,7 +1210,8 @@ def generate_html(
 
     # --- Build edition tab HTML helper ---
     def build_edition_tab(tab_id, edition_name, credit_rate, ed_stats, ed_best_size,
-                          ed_best_score, ed_comp_score, ed_okr, ed_budget_match, ed_sla_match):
+                          ed_best_score, ed_comp_score, ed_okr, ed_budget_match, ed_sla_match,
+                          ed_price_tiers, ed_perf_tiers, ed_dual_okr):
         """Build the HTML for an edition analysis tab."""
         ed_comp_time = ed_stats[competitor_name]['total']
         ed_comp_latency = ed_stats[competitor_name]['geomean']
@@ -883,74 +1270,448 @@ def generate_html(
             ({round((sm["cost"]/ed_stats[competitor_name]["cost"] - 1)*100)}% more, but {round(ed_comp_latency / sm["geomean"], 1)}x faster).
         </div>'''
 
-        # OKR scorecard
-        okr_html = f'''
-        <h2>OKR Scorecard — {OKR_TARGET}% Price:Perf Advantage Target</h2>
-        <div class="okr-explanation">
-            <strong>How to read:</strong> We target a {OKR_TARGET}% price:performance advantage over {competitor_name}.
-            The score is <code>Cost × Geomean</code> (lower = better). The advantage is
-            <code>(1 - SF_score / {competitor_name}_score) × 100</code>.
-            🟢 = ≥90% of target, 🟡 = ≥70%, 🔴 = below 70%.
-        </div>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th style="text-align:left;">Comparison</th>
-                        <th style="text-align:left;">SF Best</th>
-                        <th style="text-align:left;">{competitor_name}</th>
-                        <th style="text-align:right;">SF Score</th>
-                        <th style="text-align:right;">{competitor_name} Score</th>
-                        <th style="text-align:right;">Advantage</th>
-                        <th style="text-align:center;">Grade</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr class="{ed_okr['grade_class']}">
-                        <td>Price:Performance</td>
-                        <td>SF {ed_okr['best_size']} (${ed_stats[ed_okr["best_size"]]["cost"]:.2f})</td>
-                        <td>{competitor_name} (${ed_stats[competitor_name]["cost"]:.2f})</td>
-                        <td style="text-align:right;">{int(ed_okr['best_score'])}</td>
-                        <td style="text-align:right;">{int(ed_okr['comp_score'])}</td>
-                        <td style="text-align:right;font-weight:700;">{ed_okr['advantage']:.0f}%</td>
-                        <td style="text-align:center;">{ed_okr['grade']}</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+        # === PRICE TIER TABLE ===
+        price_tier_rows = ''
+        for t in ed_price_tiers:
+            winner_class = 'sf-winner' if t['winner'] == 'SF' else 'comp-winner'
+            price_tier_rows += f'''
+                <tr>
+                    <td>{t['tier']}</td>
+                    <td class="sf-col">SF {t['sf_size']} (${t['sf_hourly']:.0f}/hr)</td>
+                    <td class="sf-col">{int(t['sf_total']):,}s</td>
+                    <td class="sf-col">{t['sf_geomean']:.2f}s</td>
+                    <td class="comp-col">serverless</td>
+                    <td class="comp-col">{int(t['comp_total']):,}s</td>
+                    <td class="comp-col">{t['comp_geomean']:.2f}s</td>
+                    <td class="{winner_class}">{t['winner']} {t['ratio']}x</td>
+                </tr>'''
 
-        <h3>What If {competitor_name} Were 20% Faster?</h3>
-        <div class="insight-box" style="background:#fff3cd;border-color:#ffc107;">
-            <strong>⚠️ Sensitivity Analysis:</strong> If {competitor_name} improved all query times by 20%,
-            their Cost × Geomean score would drop to 64% of current (0.8 × 0.8).
-            SF advantage would narrow from <strong>{ed_okr['advantage']:.0f}%</strong> →
-            <strong>{ed_okr['whatif_advantage']:.0f}%</strong> (−{ed_okr['whatif_delta']:.0f}pp).
-        </div>
-        <div class="table-container">
-            <table>
-                <thead>
+        # === PRICE TIER CATEGORY DRILL-DOWNS ===
+        price_category_sections = ''
+        for t in ed_price_tiers:
+            cat_rows = ''
+            for c in t.get('categories', []):
+                if c['winner'] == 'SF':
+                    w_class = 'sf-winner'
+                elif c['winner'] == competitor_name:
+                    w_class = 'comp-winner'
+                else:
+                    w_class = ''
+                ratio_str = f"{c['ratio']}x" if c['ratio'] > 0 else ''
+                cat_rows += f'''
                     <tr>
-                        <th style="text-align:left;">Scenario</th>
-                        <th style="text-align:left;">SF Best</th>
-                        <th style="text-align:left;">{competitor_name}</th>
-                        <th style="text-align:right;">Original Adv.</th>
-                        <th style="text-align:right;">New Advantage</th>
-                        <th style="text-align:right;">Delta</th>
-                        <th style="text-align:center;">Grade</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr class="{ed_okr['whatif_grade_class']}">
-                        <td>{competitor_name} +20% faster</td>
-                        <td>SF {ed_okr['best_size']} — {int(ed_okr['best_score'])}</td>
-                        <td>{competitor_name} — <s>{int(ed_okr['comp_score'])}</s> → <strong>{int(ed_okr['adjusted_comp_score'])}</strong></td>
-                        <td style="text-align:right;"><s>{ed_okr['advantage']:.0f}%</s></td>
-                        <td style="text-align:right;font-weight:700;">{ed_okr['whatif_advantage']:.0f}%</td>
-                        <td style="text-align:right;color:#c62828;">−{ed_okr['whatif_delta']:.0f}pp</td>
-                        <td style="text-align:center;">{ed_okr['whatif_grade']}</td>
-                    </tr>
-                </tbody>
-            </table>
+                        <td><strong>{c['category']}</strong></td>
+                        <td style="text-align:right;">{c['count']}</td>
+                        <td class="sf-col">{c['sf_geomean']:.2f}s</td>
+                        <td class="sf-col">{int(c['sf_total'])}s</td>
+                        <td class="comp-col">{c['comp_geomean']:.2f}s</td>
+                        <td class="comp-col">{int(c['comp_total'])}s</td>
+                        <td class="{w_class}">{c['winner']} {ratio_str}</td>
+                    </tr>'''
+
+            price_category_sections += f'''
+            <h3 style="margin-top:25px;color:var(--sf-dark-blue);">{t['tier']} — SF {t['sf_size']} @ ${t['sf_hourly']:.0f}/hr vs {competitor_name} (serverless)</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="text-align:left;">Category</th>
+                            <th style="text-align:right;">Queries</th>
+                            <th>SF Geomean</th>
+                            <th>SF Total</th>
+                            <th class="comp">{competitor_name} Geomean</th>
+                            <th class="comp">{competitor_name} Total</th>
+                            <th>Winner</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {cat_rows}
+                    </tbody>
+                </table>
+            </div>'''
+
+        # === PERF TIER TABLE ===
+        perf_tier_rows = ''
+        for p in ed_perf_tiers:
+            sf_cost_str = f"${p['sf_cost']:.2f}" if p.get('sf_cost', 0) > 0 else '—'
+            sf_geomean_str = f"{p['sf_geomean']:.2f}s" if p.get('sf_geomean', 0) > 0 else '—'
+            sf_size_str = f"SF {p['sf_size']}" if p.get('sf_size', '—') != '—' else '—'
+
+            if p.get('capability_gap') and not p.get('comp_meets', True):
+                comp_geomean_str = f"<span style='color:#c62828;font-weight:600;'>{p['comp_geomean']:.2f}s ❌ Can't meet SLA</span>"
+                comp_cost_str = f"${p['comp_cost']:.2f}"
+                savings_str = "<span style='color:#2e7d32;font-weight:700;'>SF only option</span>"
+                winner_class = 'sf-winner'
+            elif p.get('comp_meets', True):
+                comp_geomean_str = f"{p['comp_geomean']:.2f}s"
+                comp_cost_str = f"${p['comp_cost']:.2f}"
+                winner_class = 'sf-winner' if p['winner'] == 'SF' else 'comp-winner'
+                savings_str = f"{p['winner']} saves {p['savings']}%"
+            else:
+                comp_geomean_str = '—'
+                comp_cost_str = '—'
+                winner_class = ''
+                savings_str = '—'
+
+            perf_tier_rows += f'''
+                <tr>
+                    <td><strong>{p['tier']}</strong></td>
+                    <td class="sf-col">{sf_size_str}</td>
+                    <td class="sf-col">{sf_geomean_str}</td>
+                    <td class="sf-col">{sf_cost_str}</td>
+                    <td class="comp-col">{comp_geomean_str}</td>
+                    <td class="comp-col">{comp_cost_str}</td>
+                    <td class="{winner_class}">{savings_str}</td>
+                </tr>'''
+
+        # === PERF TIER CATEGORY DRILL-DOWNS ===
+        perf_category_sections = ''
+        for p in ed_perf_tiers:
+            cat_rows = ''
+            for c in p.get('categories', []):
+                w_class = 'sf-winner' if c['winner'] == 'SF' else 'comp-winner' if c['winner'] == competitor_name else ''
+                sf_gm = f"{c['sf_geomean']:.2f}s" if c['sf_geomean'] > 0 else '—'
+                comp_gm = f"{c['comp_geomean']:.2f}s" if c['comp_geomean'] > 0 else '—'
+                sf_tot = f"{int(c['sf_total'])}s" if c['sf_total'] > 0 else '—'
+                comp_tot = f"{int(c['comp_total'])}s" if c['comp_total'] > 0 else '—'
+                ratio_str = f"{c['ratio']}x" if c['ratio'] > 0 else ''
+                cat_rows += f'''
+                    <tr>
+                        <td><strong>{c['category']}</strong></td>
+                        <td style="text-align:right;">{c['count']}</td>
+                        <td class="sf-col">{sf_gm}</td>
+                        <td class="sf-col">{sf_tot}</td>
+                        <td class="comp-col">{comp_gm}</td>
+                        <td class="comp-col">{comp_tot}</td>
+                        <td class="{w_class}">{c['winner']} {ratio_str}</td>
+                    </tr>'''
+
+            sf_label = f"SF {p['sf_size']} @ ${p.get('sf_hourly', 0):.0f}/hr" if p.get('sf_size', '—') != '—' else 'N/A'
+            comp_label = f"{competitor_name} (serverless)" if p.get('comp_meets', True) else f"{competitor_name}: <em>Can't meet SLA</em>"
+            perf_category_sections += f'''
+            <h3 style="margin-top:25px;color:var(--sf-dark-blue);">{p['tier']} — {sf_label} vs {comp_label}</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="text-align:left;">Category</th>
+                            <th style="text-align:right;">Queries</th>
+                            <th>SF Geomean</th>
+                            <th>SF Total</th>
+                            <th class="comp">{competitor_name} Geomean</th>
+                            <th class="comp">{competitor_name} Total</th>
+                            <th>Faster</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {cat_rows}
+                    </tbody>
+                </table>
+            </div>'''
+
+        # === DUAL-ANCHOR OKR SCORECARD ===
+        target = ed_dual_okr['target']
+
+        # Cost anchor rows
+        cost_rows = ''
+        for a in ed_dual_okr['cost_advantages']:
+            score_pct = a['advantage'] / target if target > 0 else 0
+            if score_pct >= 0.9:
+                icon, row_class = '🟢', 'okr-row-green'
+            elif score_pct >= 0.7:
+                icon, row_class = '🟡', 'okr-row-yellow'
+            else:
+                icon, row_class = '🔴', 'okr-row-red'
+            cost_rows += f'''
+                <tr class="{row_class}">
+                    <td>{a['tier']}</td>
+                    <td>SF {a['sf_size']} ({a['sf_geomean']:.2f}s)</td>
+                    <td>{competitor_name} ({a['comp_geomean']:.2f}s)</td>
+                    <td style="text-align:right;">{int(a['sf_score'])}</td>
+                    <td style="text-align:right;">{int(a['comp_score'])}</td>
+                    <td style="text-align:right;font-weight:700;">{a['advantage']:.0f}%</td>
+                    <td style="text-align:center;">{icon}</td>
+                </tr>'''
+
+        # Perf anchor rows
+        perf_rows = ''
+        for a in ed_dual_okr['perf_advantages']:
+            score_pct = a['advantage'] / target if target > 0 else 0
+            if score_pct >= 0.9:
+                icon, row_class = '🟢', 'okr-row-green'
+            elif score_pct >= 0.7:
+                icon, row_class = '🟡', 'okr-row-yellow'
+            else:
+                icon, row_class = '🔴', 'okr-row-red'
+
+            if a.get('capability_gap') and not a.get('comp_meets', True):
+                comp_cell = f"<em>Can't meet SLA</em>"
+                adv_str = f"<span style='color:#2e7d32;'>SF only option</span>"
+            else:
+                comp_cell = f"{competitor_name} (${a['comp_cost']:.2f})"
+                adv_str = f"{a['advantage']:.0f}%"
+
+            perf_rows += f'''
+                <tr class="{row_class}">
+                    <td>{a['tier']}</td>
+                    <td>SF {a['sf_size']} (${a.get('sf_cost', 0):.2f})</td>
+                    <td>{comp_cell}</td>
+                    <td style="text-align:right;font-weight:700;">{adv_str}</td>
+                    <td style="text-align:center;">{icon}</td>
+                </tr>'''
+
+        def _section_grade(meeting, total):
+            if total == 0:
+                return '🔴', 0
+            pct = meeting / total * 100
+            if pct >= 90:
+                return '🟢', pct
+            elif pct >= 70:
+                return '🟡', pct
+            else:
+                return '🔴', pct
+
+        cost_grade_icon, cost_grade_pct = _section_grade(ed_dual_okr['cost_meeting'], ed_dual_okr['cost_total'])
+        perf_grade_icon, perf_grade_pct = _section_grade(ed_dual_okr['perf_meeting'], ed_dual_okr['perf_total'])
+
+        # === WHAT-IF: COMPETITOR 20% FASTER — COST ANCHOR ===
+        whatif_cost_rows = ''
+        whatif_cost_meeting = 0
+        for a in ed_dual_okr['cost_advantages']:
+            sf_sc = a['sf_score']
+            orig_comp_sc = a['comp_score']
+            adj_comp_sc = orig_comp_sc * 0.64  # 0.8 cost × 0.8 geomean
+            new_adv = round((1 - sf_sc / adj_comp_sc) * 100, 1) if adj_comp_sc > 0 else 0
+            delta = a['advantage'] - new_adv
+            okr_sc = new_adv / target if target > 0 else 0
+            if okr_sc >= 0.9:
+                icon, row_class = '🟢', 'okr-row-green'
+                whatif_cost_meeting += 1
+            elif okr_sc >= 0.7:
+                icon, row_class = '🟡', 'okr-row-yellow'
+            else:
+                icon, row_class = '🔴', 'okr-row-red'
+            whatif_cost_rows += f'''
+                <tr class="{row_class}">
+                    <td>{a['tier']}</td>
+                    <td>SF {a['sf_size']} — {int(sf_sc)}</td>
+                    <td>{competitor_name} — <s>{int(orig_comp_sc)}</s> → <strong>{int(adj_comp_sc)}</strong></td>
+                    <td style="text-align:right;"><s>{a['advantage']:.0f}%</s></td>
+                    <td style="text-align:right;font-weight:700;">{new_adv:.0f}%</td>
+                    <td style="text-align:right;color:#c62828;">−{delta:.0f}pp</td>
+                    <td style="text-align:center;">{icon}</td>
+                </tr>'''
+
+        # === WHAT-IF: COMPETITOR 20% FASTER — PERF ANCHOR ===
+        whatif_perf_rows = ''
+        whatif_perf_meeting = 0
+        for a in ed_dual_okr['perf_advantages']:
+            orig_adv = a['advantage']
+            sf_cost_val = a.get('sf_cost', 0)
+            comp_cost_val = a.get('comp_cost', 0)
+            orig_comp_gm = a.get('comp_geomean', 0)
+            adj_comp_gm = orig_comp_gm * 0.8 if orig_comp_gm > 0 else 0
+
+            sla_str = a['tier'].replace('≤', '').replace('s SLA', '').replace('s', '').strip()
+            try:
+                sla_val = float(sla_str)
+            except ValueError:
+                sla_val = 999
+
+            if a.get('capability_gap') and not a.get('comp_meets', True):
+                # Competitor currently can't meet SLA. Can they with 20% improvement?
+                if adj_comp_gm > 0 and adj_comp_gm <= sla_val:
+                    # They can now meet it!
+                    new_adv = round((1 - sf_cost_val / comp_cost_val) * 100, 1) if comp_cost_val > 0 else 0
+                    comp_cell = f"{competitor_name} — <strong>NOW qualifies!</strong> ({adj_comp_gm:.1f}s)"
+                else:
+                    new_adv = 100
+                    comp_cell = f"<em>still can't meet SLA</em>"
+            else:
+                # Both meet — recalculate with adjusted competitor score
+                sf_sc = sf_cost_val * a.get('sf_geomean', 0) if sf_cost_val > 0 else 0
+                orig_comp_sc = comp_cost_val * orig_comp_gm if comp_cost_val > 0 else 0
+                adj_comp_sc = orig_comp_sc * 0.64
+                new_adv = round((1 - sf_sc / adj_comp_sc) * 100, 1) if adj_comp_sc > 0 else 0
+                comp_cell = f"{competitor_name} — <s>{int(orig_comp_sc)}</s> → <strong>{int(adj_comp_sc)}</strong>"
+
+            delta = orig_adv - new_adv
+            okr_sc = new_adv / target if target > 0 else 0
+            if okr_sc >= 0.9:
+                icon, row_class = '🟢', 'okr-row-green'
+                whatif_perf_meeting += 1
+            elif okr_sc >= 0.7:
+                icon, row_class = '🟡', 'okr-row-yellow'
+            else:
+                icon, row_class = '🔴', 'okr-row-red'
+
+            if delta > 0:
+                delta_cell = f"<span style='color:#c62828;'>−{delta:.0f}pp</span>"
+            elif delta < 0:
+                delta_cell = f"<span style='color:#2e7d32;'>+{-delta:.0f}pp</span>"
+            else:
+                delta_cell = '—'
+
+            sf_cell = f"SF {a['sf_size']} — ${sf_cost_val:.2f}" if sf_cost_val > 0 else f"SF {a['sf_size']}"
+            whatif_perf_rows += f'''
+                <tr class="{row_class}">
+                    <td>{a['tier']}</td>
+                    <td>{sf_cell}</td>
+                    <td>{comp_cell}</td>
+                    <td style="text-align:right;"><s>{orig_adv:.0f}%</s></td>
+                    <td style="text-align:right;font-weight:700;">{new_adv:.0f}%</td>
+                    <td style="text-align:right;">{delta_cell}</td>
+                    <td style="text-align:center;">{icon}</td>
+                </tr>'''
+
+        whatif_cost_icon, whatif_cost_pct = _section_grade(whatif_cost_meeting, ed_dual_okr['cost_total'])
+        whatif_perf_icon, whatif_perf_pct = _section_grade(whatif_perf_meeting, ed_dual_okr['perf_total'])
+
+        okr_html = f'''
+        <div class="okr-scorecard">
+            <h2>OKR Scorecard: {target}% Price:Performance Advantage — {edition_name}</h2>
+
+            <div class="okr-explanation">
+                <strong>Target:</strong> {target}% advantage at each tier<br>
+                <strong>OKR Scoring:</strong> 🟢 ≥90% of target (≥{target*0.9:.1f}%) | 🟡 70-90% ({target*0.7:.1f}-{target*0.9:.1f}%) | 🔴 &lt;70% (&lt;{target*0.7:.1f}%)<br>
+                <strong>Cost Anchor:</strong> Score = Run Cost × Geomean. Advantage = (1 - SF/{competitor_name}) × 100%<br>
+                <strong>Perf Anchor:</strong> At same latency SLA, who's cheaper? Capability gaps = {competitor_name} can't meet tight SLAs.
+            </div>
+
+            <details style="margin:15px 0;padding:10px;background:#f8f9fa;border-radius:6px;font-size:0.9em;">
+                <summary style="cursor:pointer;font-weight:600;color:#0066cc;">ℹ️ How are tiers determined? (click to expand)</summary>
+                <div style="margin-top:10px;padding:10px;background:white;border-radius:4px;">
+                    <p><strong>Tier boundaries are vendor-neutral and mathematically derived:</strong></p>
+                    <ul style="margin:10px 0;padding-left:20px;">
+                        <li><strong>Budget Tiers:</strong> Log-spaced across SF's hourly rate range (since {competitor_name} is serverless with a fixed cost).
+                            At each tier, SF's best config competes against {competitor_name}'s single price point.</li>
+                        <li><strong>SLA Tiers:</strong> Log-spaced from just above the fastest config to the slowest.
+                            Tight SLAs expose <em>capability gaps</em> where {competitor_name} can't compete at all.</li>
+                    </ul>
+                    <p style="margin-top:10px;"><strong>Why this is fair:</strong></p>
+                    <ul style="margin:10px 0;padding-left:20px;">
+                        <li>Tier boundaries come from <em>mathematical distribution</em>, not either vendor's specific config values</li>
+                        <li>Log-scale spacing is natural for both cost and latency metrics</li>
+                        <li>Each tier finds the <em>best qualifying config</em> from SF independently</li>
+                        <li>{competitor_name}'s serverless model means it appears identically in every price tier — a fair reflection of its fixed-cost model</li>
+                    </ul>
+                </div>
+            </details>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;">
+                <!-- Cost Anchor Detail -->
+                <div>
+                    <h3>Cost Anchor: At Same Budget, Who's Faster?</h3>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="text-align:left;">Budget Tier</th>
+                                    <th>SF</th>
+                                    <th class="comp">{competitor_name}</th>
+                                    <th>SF Score</th>
+                                    <th class="comp">{competitor_name} Score</th>
+                                    <th>Advantage</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {cost_rows}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="margin-top:8px;font-size:0.85em;color:#666;">
+                        {cost_grade_icon} Meeting target: {ed_dual_okr['cost_meeting']}/{ed_dual_okr['cost_total']} tiers ({cost_grade_pct:.0f}%)
+                    </div>
+                </div>
+
+                <!-- Perf Anchor Detail -->
+                <div>
+                    <h3>Perf Anchor: At Same SLA, Who's Cheaper?</h3>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="text-align:left;">Latency SLA</th>
+                                    <th>SF (cost)</th>
+                                    <th class="comp">{competitor_name}</th>
+                                    <th>SF Savings</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {perf_rows}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="margin-top:8px;font-size:0.85em;color:#666;">
+                        {perf_grade_icon} Meeting target: {ed_dual_okr['perf_meeting']}/{ed_dual_okr['perf_total']} tiers ({perf_grade_pct:.0f}%)
+                    </div>
+                </div>
+            </div>
+
+            <!-- What If: Competitor 20% Faster -->
+            <div style="margin-top:30px;padding:20px;background:#fff3e0;border-radius:8px;border:1px solid #ffb74d;">
+                <h3 style="margin-top:0;color:#e65100;">🔮 What If: {competitor_name} Were 20% Faster?</h3>
+                <p style="font-size:0.9em;color:#666;margin-bottom:15px;">
+                    Sensitivity analysis: If {competitor_name} improved all query latencies by 20%, how would our OKR standing change?
+                    Score drops to 0.64× (0.8 cost × 0.8 geomean = 36% improvement).
+                </p>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                    <!-- Cost Anchor What If -->
+                    <div>
+                        <h4 style="margin-top:0;">Cost Anchor Impact</h4>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="text-align:left;">Budget Tier</th>
+                                        <th>SF Score</th>
+                                        <th class="comp">{competitor_name} Score</th>
+                                        <th>Was</th>
+                                        <th>Now</th>
+                                        <th>Δ</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {whatif_cost_rows}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style="margin-top:8px;font-size:0.85em;color:#666;">
+                            {whatif_cost_icon} Green tiers after: {whatif_cost_meeting}/{ed_dual_okr['cost_total']} ({whatif_cost_pct:.0f}%)
+                        </div>
+                    </div>
+
+                    <!-- Perf Anchor What If -->
+                    <div>
+                        <h4 style="margin-top:0;">Perf Anchor Impact</h4>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="text-align:left;">Latency SLA</th>
+                                        <th>SF</th>
+                                        <th class="comp">{competitor_name}</th>
+                                        <th>Was</th>
+                                        <th>Now</th>
+                                        <th>Δ</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {whatif_perf_rows}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style="margin-top:8px;font-size:0.85em;color:#666;">
+                            {whatif_perf_icon} Green tiers after: {whatif_perf_meeting}/{ed_dual_okr['perf_total']} ({whatif_perf_pct:.0f}%)
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>'''
 
         return f'''
@@ -966,7 +1727,62 @@ def generate_html(
             The Cost × Geomean score ({int(ed_best_score)}) beats {competitor_name} ({int(ed_comp_score)}) by {ed_pp_ratio}x.
         </div>
 
-        <h2>Size Comparison — {edition_name}</h2>
+        {okr_html}
+
+        <h2 style="margin-top:40px;">Price Tier Comparison: At Each Budget, Who's Faster?</h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="text-align:left;">Price Tier</th>
+                        <th>SF Config</th>
+                        <th>SF Total</th>
+                        <th>SF Geomean</th>
+                        <th class="comp">{competitor_name} Config</th>
+                        <th class="comp">{competitor_name} Total</th>
+                        <th class="comp">{competitor_name} Geomean</th>
+                        <th>Winner</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {price_tier_rows}
+                </tbody>
+            </table>
+        </div>
+
+        <h2>Price Tier Breakdown by Query Category</h2>
+        {price_category_sections}
+
+        <h2 style="margin-top:40px;">Performance Tier Comparison: To Hit This SLA, Who's Cheaper?</h2>
+        <div class="insight-box">
+            <strong>The flip side:</strong> Instead of asking "At this budget, who's faster?",
+            we now ask "To achieve this latency SLA, who's cheaper?"
+            Capability gaps highlight where {competitor_name}'s serverless model <em>can't</em> meet tight SLAs.
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="text-align:left;">Performance SLA</th>
+                        <th>SF Size</th>
+                        <th>SF Latency</th>
+                        <th>SF Cost</th>
+                        <th class="comp">{competitor_name} Latency</th>
+                        <th class="comp">{competitor_name} Cost</th>
+                        <th>Cost Winner</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {perf_tier_rows}
+                </tbody>
+            </table>
+        </div>
+
+        <h2 style="margin-top:40px;">Performance Tier Breakdown by Query Category</h2>
+        {perf_category_sections}
+
+        <h2 style="margin-top:40px;">Size Comparison — {edition_name}</h2>
         <div class="table-container">
             <table>
                 <thead>
@@ -995,16 +1811,36 @@ def generate_html(
             </table>
         </div>
 
-        {okr_html}
+        <h2 style="margin-top:40px;">Size Breakdown by Query Category</h2>
+        <div class="insight-box" style="background:#e8f4fc;border-color:var(--sf-blue);">
+            <strong>📊 Drill-down:</strong> For each SF size, how does performance compare across 
+            TPC-DS workload types? Categories: <strong>Reporting</strong> (22q), <strong>Ad-hoc</strong> (18q), 
+            <strong>OLAP</strong> (41q), <strong>Data Mining</strong> (22q).
+        </div>
+        {render_size_category_sections_html(
+            sf_data=sf_data,
+            comp_times=competitor_data['times'],
+            sf_sizes=sf_sizes,
+            comp_label=competitor_name,
+            comp_hourly=None,
+            credit_rate=credit_rate,
+            sf_credits_per_hour=SF_CREDITS_PER_HOUR_GEN2,
+            sf_col_class='sf-col',
+            comp_col_class='comp-col',
+            sf_winner_class='sf-winner',
+            comp_winner_class='comp-winner'
+        )}
     </div>'''
 
     # Build both edition tabs
     ee_tab = build_edition_tab('ee-analysis', 'Enterprise Edition', SF_CREDIT_RATE_EE,
                                 stats_ee, best_size_ee, best_score_ee, comp_score_ee,
-                                okr_ee, budget_match_ee, sla_match_ee)
+                                okr_ee, budget_match_ee, sla_match_ee,
+                                price_tiers_ee, perf_tiers_ee, dual_okr_ee)
     se_tab = build_edition_tab('se-analysis', 'Standard Edition', SF_CREDIT_RATE_SE,
                                 stats_se, best_size_se, best_score_se, comp_score_se,
-                                okr_se, budget_match_se, sla_match_se)
+                                okr_se, budget_match_se, sla_match_se,
+                                price_tiers_se, perf_tiers_se, dual_okr_se)
 
     # --- Pricing breakdown table ---
     pricing_table = '<table style="font-size:0.95em; border-collapse:collapse; width:100%;">'
@@ -1188,6 +2024,12 @@ def generate_html(
             font-weight: 700;
         }}
 
+        /* Category breakdown table styling */
+        .sf-col {{ color: var(--sf-dark-blue); }}
+        .comp-col {{ color: #CC7A00; }}
+        .sf-winner {{ color: var(--green); font-weight: 700; }}
+        .comp-winner {{ color: #CC7A00; font-weight: 700; }}
+
         .insight-box {{
             background: #E8F4FC;
             border-left: 4px solid var(--sf-blue);
@@ -1300,6 +2142,17 @@ def generate_html(
         .okr-row-green td {{ background: #e8f5e9 !important; }}
         .okr-row-yellow td {{ background: #fff8e1 !important; }}
         .okr-row-red td {{ background: #ffebee !important; }}
+
+        .okr-scorecard {{
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 25px;
+            margin: 30px 0;
+        }}
+        .okr-scorecard h2 {{ margin-top: 0; }}
+
+        th.comp, th.comp {{ color: var(--comp-orange); }}
     </style>
 </head>
 <body>

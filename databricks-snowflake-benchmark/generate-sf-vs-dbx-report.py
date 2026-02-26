@@ -13,10 +13,10 @@ performance at an acceptable price point. This report answers:
 
 Usage:
     python generate-sf-vs-dbx-report.py \
-        --sf-runs 3760762,3760760,3760763,3760740,3760766,3760764 \
-        --sf-sizes S,M,L,XL,2XL,3XL \
-        --dbx-runs 3760299,3760291,3760696,3760002,3760804,3760301 \
-        --dbx-sizes S,M,L,XL,2XL,3XL \
+        --sf-runs 3760762,3760760,3760763,3760740,3760766 \
+        --sf-sizes S,M,L,XL,2XL \
+        --dbx-runs 3760299,3760291,3760696,3760002,3760804 \
+        --dbx-sizes S,M,L,XL,2XL \
         --output sf-fdn-vs-dbx-delta-10tb.html
 
 Requires: snowflake-connector-python
@@ -36,6 +36,15 @@ try:
 except ImportError:
     print("ERROR: snowflake-connector-python required. Install with: pip install snowflake-connector-python")
     sys.exit(1)
+
+# Shared TPC-DS category utilities (single source of truth for classifications)
+from tpcds_categories import (
+    QUERY_CLASSIFICATIONS as SHARED_QUERY_CLASSIFICATIONS,
+    calc_category_geomean as shared_calc_category_geomean,
+    calc_category_total as shared_calc_category_total,
+    build_category_breakdown, render_category_table_html,
+    get_category, get_category_queries
+)
 
 
 # =============================================================================

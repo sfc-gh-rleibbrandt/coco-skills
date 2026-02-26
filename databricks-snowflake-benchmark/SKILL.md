@@ -32,10 +32,10 @@ SELECT COUNT(*) FROM bench_store.publicdata.sample_batch_pivot LIMIT 1;
 cd /Users/rleibbrandt/codePad/projects/benchmarking
 
 python3 scripts/generate-sf-vs-dbx-report.py \
-    --sf-runs 3760762,3760760,3760763,3760740,3760766,3760764,3761124 \
-    --sf-sizes "S,M,L,XL,2XL,3XL,4XL" \
-    --dbx-runs 3762414,3760819,3760696,3777742,3760804,3760808 \
-    --dbx-sizes "S,M,L,XL,2XL,3XL" \
+    --sf-runs 3760762,3760760,3760763,3760740,3760766 \
+    --sf-sizes "S,M,L,XL,2XL" \
+    --dbx-runs 3762414,3760819,3760696,3777742,3760804 \
+    --dbx-sizes "S,M,L,XL,2XL" \
     --output results/sf-vs-dbx-price-perf.html
 ```
 
@@ -176,8 +176,6 @@ S=$16, M=$16.8, L=$28, XL=$56, 2XL=$100.8, 3XL=$190.4
 | L    | 3760763 | $21.60  | $32.40  |
 | XL   | 3760740 | $43.20  | $64.80  |
 | 2XL  | 3760766 | $86.40  | $129.60 |
-| 3XL  | 3760764 | $172.80 | $259.20 |
-| 4XL  | 3761124 | $345.60 | $518.40 |
 
 ### Databricks Delta (Photon) — Unclustered Schema
 | Size | Run Key | $/hr    | Notes |
@@ -187,7 +185,6 @@ S=$16, M=$16.8, L=$28, XL=$56, 2XL=$100.8, 3XL=$190.4
 | L    | 3760696 | $28.00  | schema=DEFAULT (unclustered) |
 | XL   | 3777742 | $56.00  | **Golden reference** - schema=DEFAULT |
 | 2XL  | 3760804 | $100.80 | schema=DEFAULT (unclustered) |
-| 3XL  | 3760808 | $190.40 | schema=DEFAULT (unclustered) |
 
 **Important:** Use unclustered schema runs for fair comparison. Clustered runs (`tags_by_key:"schema"='10tb_clustered'`) are slower and not apples-to-apples.
 
@@ -282,10 +279,10 @@ END;
 cd /Users/rleibbrandt/codePad/projects/benchmarking
 
 python3 scripts/generate-sf-vs-dbx-report.py \
-    --sf-runs 3760762,3760760,3760763,3760740,3760766,3760764,3761124 \
-    --sf-sizes "S,M,L,XL,2XL,3XL,4XL" \
-    --dbx-runs 3762414,3760819,3760696,3777742,3760804,3760808 \
-    --dbx-sizes "S,M,L,XL,2XL,3XL" \
+    --sf-runs 3760762,3760760,3760763,3760740,3760766 \
+    --sf-sizes "S,M,L,XL,2XL" \
+    --dbx-runs 3762414,3760819,3760696,3777742,3760804 \
+    --dbx-sizes "S,M,L,XL,2XL" \
     --output results/sf-vs-dbx-price-perf.html
 ```
 

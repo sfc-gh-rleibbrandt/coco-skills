@@ -19,8 +19,8 @@ Generate a report using the Python generator:
 
 ```bash
 python /Users/rleibbrandt/codePad/projects/benchmarking/scripts/generate-tpcds-price-perf.py \
-  --sf-runs 3761057,3761059,3761060,3760798,3761053,3761056 \
-  --sf-sizes S,M,L,XL,2XL,3XL \
+  --sf-runs 3761057,3761059,3761060,3760798,3761053 \
+  --sf-sizes S,M,L,XL,2XL \
   --competitor-run 3473166 \
   --competitor-name "Athena" \
   --competitor-cost 10.30 \
@@ -37,7 +37,6 @@ python /Users/rleibbrandt/codePad/projects/benchmarking/scripts/generate-tpcds-p
 | L    | 3761060 | 8          | $2.70/cr     |
 | XL   | 3760798 | 16         | $2.70/cr     |
 | 2XL  | 3761053 | 32         | $2.70/cr     |
-| 3XL  | 3761056 | 64         | $2.70/cr     |
 
 ### Athena (TPC-DS 10TB)
 | Run Key | Data Scanned | Cost Model      |
@@ -141,8 +140,8 @@ When you're happy with the report, add `--publish` to the command:
 
 ```bash
 python scripts/generate-tpcds-price-perf.py \
-  --sf-runs 3761057,3761059,3761060,3760798,3761053,3761056 \
-  --sf-sizes S,M,L,XL,2XL,3XL \
+  --sf-runs 3761057,3761059,3761060,3760798,3761053 \
+  --sf-sizes S,M,L,XL,2XL \
   --competitor-run 3473166 \
   --competitor-name "Athena" \
   --competitor-cost 10.30 \
@@ -164,8 +163,8 @@ Example: `results/competitive/sf-vs-athena-tpcds-10tb-2026-02-21.html`
 cd /Users/rleibbrandt/codePad/projects/benchmarking
 
 python scripts/generate-tpcds-price-perf.py \
-  --sf-runs 3761057,3761059,3761060,3760798,3761053,3761056 \
-  --sf-sizes S,M,L,XL,2XL,3XL \
+  --sf-runs 3761057,3761059,3761060,3760798,3761053 \
+  --sf-sizes S,M,L,XL,2XL \
   --competitor-run 3473166 \
   --competitor-name "Athena" \
   --competitor-cost 10.30 \
@@ -192,4 +191,4 @@ ORDER BY 1;
 ### Time Units
 - Snowflake times are in **milliseconds** (`metrics:TOTAL_DURATION_MS`)
 - Athena times are in **milliseconds** (`metrics:"e2e_latency"`)
-- The script divides both by 1000 to convert to seconds automatically
+- The script divides both platforms' times by 1000 to get seconds for display
