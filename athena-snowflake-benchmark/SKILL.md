@@ -25,7 +25,7 @@ python3 /Users/rleibbrandt/codePad/projects/benchmarking/scripts/generate-tpcds-
   --sf-label "Gen2 Managed Iceberg" \
   --competitor-run 3473166 \
   --competitor-name "Athena" \
-  --competitor-cost 10.30 \
+  --competitor-data-scanned-gb 8151.4922 \
   --output notes/artifacts/sf-managed-ib-vs-athena-10tb.html \
   --publish
 ```
@@ -38,7 +38,7 @@ python3 /Users/rleibbrandt/codePad/projects/benchmarking/scripts/generate-tpcds-
   --sf-label "Gen2 Unmanaged Iceberg" \
   --competitor-run 3473166 \
   --competitor-name "Athena" \
-  --competitor-cost 10.30 \
+  --competitor-data-scanned-gb 7920.8721 \
   --output notes/artifacts/sf-unmanaged-ib-vs-athena-10tb.html \
   --publish
 ```
@@ -50,6 +50,7 @@ If browser auth is unavailable, pre-fetch data as JSON and use the offline gener
 python3 /Users/rleibbrandt/codePad/projects/benchmarking/scripts/generate-reports-offline.py \
   --data-file data/managed-ib-vs-athena-2026-03-10.json \
   --sf-label "Gen2 Managed Iceberg" \
+  --competitor-data-scanned-gb 8151.4922 \
   --output notes/artifacts/sf-managed-ib-vs-athena-10tb.html \
   --publish
 ```
@@ -84,9 +85,13 @@ python3 /Users/rleibbrandt/codePad/projects/benchmarking/scripts/generate-report
 | 2XL  | 3761053 |
 
 ### Athena (TPC-DS 10TB)
-| Run Key | Data Scanned | Cost Model      |
-|---------|--------------|-----------------|
-| 3473166 | 2.06 TB      | $5.00/TB = $10.30 |
+| Run Key | Iceberg Source | Data Scanned (GB) | Cost ($5/TB) |
+|---------|----------------|-------------------|--------------|
+| 3473166 | Managed (SfIB-v2) | 8,151.49 GB (8.15 TB) | $40.76 |
+| 3473166 | Unmanaged (SfIB-v3 / Spark) | 7,920.87 GB (7.92 TB) | $39.60 |
+
+> **Note:** Same Athena run key but data scanned differs by Iceberg table format.
+> Values are manually provided — not stored in bench_store.
 
 ## Script Parameters
 
@@ -97,9 +102,12 @@ python3 /Users/rleibbrandt/codePad/projects/benchmarking/scripts/generate-report
 | `--sf-label` | No | Label for SF data format in report (default: "Gen2 Iceberg"). Use "Gen2 Managed Iceberg" or "Gen2 Unmanaged Iceberg" |
 | `--competitor-run` | Yes | Competitor run key from bench_store |
 | `--competitor-name` | Yes | Display name (e.g., "Athena") |
-| `--competitor-cost` | Yes | Competitor total cost in USD |
+| `--competitor-data-scanned-gb` | No* | GB scanned by competitor. Auto-calculates cost at $5/TB. See Athena table above for values |
+| `--competitor-cost` | No* | Competitor total cost in USD. Overrides auto-calc if both provided |
 | `--output` | Yes | Output HTML file path |
 | `--publish` | No | Copy report to `results/competitive/` with date-stamped filename + `_latest` copy |
+
+> *One of `--competitor-data-scanned-gb` or `--competitor-cost` is required. Prefer `--competitor-data-scanned-gb` — it auto-derives cost and displays GB scanned in the report.
 
 ## Pricing Models
 
@@ -192,7 +200,7 @@ python3 scripts/generate-tpcds-price-perf.py \
   --sf-label "Gen2 Managed Iceberg" \
   --competitor-run 3473166 \
   --competitor-name "Athena" \
-  --competitor-cost 10.30 \
+  --competitor-data-scanned-gb 8151.4922 \
   --output notes/artifacts/sf-managed-ib-vs-athena-10tb.html \
   --publish
 
@@ -203,7 +211,7 @@ python3 scripts/generate-tpcds-price-perf.py \
   --sf-label "Gen2 Unmanaged Iceberg" \
   --competitor-run 3473166 \
   --competitor-name "Athena" \
-  --competitor-cost 10.30 \
+  --competitor-data-scanned-gb 7920.8721 \
   --output notes/artifacts/sf-unmanaged-ib-vs-athena-10tb.html \
   --publish
 ```
@@ -229,7 +237,7 @@ python3 scripts/generate-tpcds-price-perf.py \
   --sf-label "Gen2 Managed Iceberg" \
   --competitor-run 3473166 \
   --competitor-name "Athena" \
-  --competitor-cost 10.30 \
+  --competitor-data-scanned-gb 8151.4922 \
   --output notes/artifacts/sf-managed-ib-vs-athena-$(date +%Y%m%d).html
 ```
 

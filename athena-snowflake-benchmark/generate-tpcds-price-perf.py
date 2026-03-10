@@ -2255,6 +2255,7 @@ def generate_html(
                                 <th style="padding:4px 8px;">Pricing</th>
                             </tr>
                             <tr><td style="padding:2px 8px;">Serverless</td><td style="padding:2px 8px; text-align:center;"><strong>$5.00/TB scanned</strong></td></tr>
+                            <tr><td style="padding:2px 8px;">Data scanned</td><td style="padding:2px 8px; text-align:center;"><strong>{f'{competitor_data["data_scanned_gb"]:.2f} GB ({competitor_data["data_scanned_gb"]/1000:.4f} TB)' if competitor_data.get("data_scanned_gb") else 'N/A'}</strong></td></tr>
                             <tr><td style="padding:2px 8px;">This run</td><td style="padding:2px 8px; text-align:center;"><strong>${competitor_data["cost"]:.2f}</strong></td></tr>
                         </table>
                     </td>
@@ -2526,7 +2527,7 @@ def generate_html(
     <div class="footer">
         <p><strong>Generated:</strong> {datetime.now().strftime("%Y-%m-%d %H:%M")}{f' | <strong>Published:</strong> {publish_date}' if publish_date else ''} | <strong>Data:</strong> TPC-DS 10TB</p>
         <p><strong>SF Pricing:</strong> SE @$2/credit, EE @$3/credit (Gen2) | <strong>SF Sizes:</strong> {', '.join(sf_sizes)}</p>
-        <p><strong>{competitor_name} Cost:</strong> ${competitor_data["cost"]:.2f} ($5/TB × data scanned)</p>
+        <p><strong>{competitor_name} Cost:</strong> ${competitor_data["cost"]:.2f} ({f'{competitor_data["data_scanned_gb"]:.2f} GB scanned × $5/TB' if competitor_data.get("data_scanned_gb") else '$5/TB × data scanned'})</p>
         <p><strong>Run Keys:</strong> SF: {', '.join(str(sf_data[s]["run_key"]) for s in sf_sizes)} | {competitor_name}: {competitor_data["run_key"]}</p>
         <p><strong>Generator:</strong> <code>scripts/generate-tpcds-price-perf.py</code></p>
     </div>
@@ -3072,7 +3073,8 @@ def main():
     parser.add_argument('--sf-sizes', required=True, help='Comma-separated SF warehouse sizes (matching run order)')
     parser.add_argument('--competitor-run', required=True, type=int, help='Competitor run key')
     parser.add_argument('--competitor-name', required=True, help='Competitor name (e.g., Athena)')
-    parser.add_argument('--competitor-cost', required=True, type=float, help='Competitor cost in USD')
+    parser.add_argument('--competitor-cost', type=float, help='Competitor cost in USD (auto-calculated from --competitor-data-scanned-gb if omitted)')
+    parser.add_argument('--competitor-data-scanned-gb', type=float, help='GB scanned by competitor (used to calculate cost at $5/TB)')
     parser.add_argument('--sf-label', default='Gen2 Iceberg',
                         help='Label for SF data format in report (e.g., "Gen2 Managed Iceberg")')
     parser.add_argument('--output', required=True, help='Output HTML file path')
@@ -3086,6 +3088,16 @@ def main():
 
     if len(sf_runs) != len(sf_sizes):
         print(f"ERROR: Number of runs ({len(sf_runs)}) must match number of sizes ({len(sf_sizes)})")
+        sys.exit(1)
+
+    # Derive competitor cost from data scanned if not explicitly provided
+    competitor_cost = args.competitor_cost
+    competitor_data_scanned_gb = args.competitor_data_scanned_gb
+    if competitor_cost is None and competitor_data_scanned_gb is not None:
+        competitor_cost = 5.0 * competitor_data_scanned_gb / 1000.0
+        print(f"Competitor cost: ${competitor_cost:.2f} (derived from {competitor_data_scanned_gb:.4f} GB × $5/TB)")
+    elif competitor_cost is None:
+        print("ERROR: Must provide either --competitor-cost or --competitor-data-scanned-gb")
         sys.exit(1)
 
     publish_date = None
@@ -3116,7 +3128,8 @@ def main():
         'name': args.competitor_name,
         'run_key': args.competitor_run,
         'times': competitor_times,
-        'cost': args.competitor_cost,
+        'cost': competitor_cost,
+        'data_scanned_gb': competitor_data_scanned_gb,
         'metadata': competitor_metadata
     }
 

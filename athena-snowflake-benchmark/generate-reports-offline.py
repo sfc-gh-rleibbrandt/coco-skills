@@ -44,6 +44,8 @@ def main():
     parser.add_argument('--data-file', required=True, help='JSON file with pre-fetched benchmark data')
     parser.add_argument('--output', required=True, help='Output HTML file path')
     parser.add_argument('--sf-label', default='Gen2 Iceberg', help='Label for SF data format')
+    parser.add_argument('--competitor-data-scanned-gb', type=float, help='GB scanned by competitor (overrides JSON value)')
+    parser.add_argument('--competitor-cost', type=float, help='Competitor cost in USD (overrides JSON and auto-calc)')
     parser.add_argument('--publish', action='store_true', help='Publish with date-stamped filename')
     args = parser.parse_args()
 
@@ -76,11 +78,26 @@ def main():
     comp = data['competitor']
     comp_times = build_times_dict(comp['query_times'])
     comp_run_date = str(comp['metadata'].get('run_date', '')).strip('"')
+
+    # Resolve data_scanned_gb: CLI flag > JSON field > None
+    data_scanned_gb = args.competitor_data_scanned_gb
+    if data_scanned_gb is None:
+        data_scanned_gb = comp.get('data_scanned_gb')
+
+    # Resolve cost: CLI flag > auto-calc from GB > JSON field
+    comp_cost = args.competitor_cost
+    if comp_cost is None and data_scanned_gb is not None:
+        comp_cost = 5.0 * data_scanned_gb / 1000.0
+        print(f"Competitor cost: ${comp_cost:.2f} (derived from {data_scanned_gb:.4f} GB × $5/TB)")
+    elif comp_cost is None:
+        comp_cost = comp['cost']
+
     competitor_data = {
         'name': comp['name'],
         'run_key': comp['run_key'],
         'times': comp_times,
-        'cost': comp['cost'],
+        'cost': comp_cost,
+        'data_scanned_gb': data_scanned_gb,
         'metadata': {
             'run_key': comp['run_key'],
             'run_date': comp_run_date,

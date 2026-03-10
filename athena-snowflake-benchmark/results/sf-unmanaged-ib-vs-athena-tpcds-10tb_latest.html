@@ -335,13 +335,13 @@
             </div>
             <div class="card comp">
                 <div class="label">Athena</div>
-                <div class="value">$10.30</div>
+                <div class="value">$39.60</div>
                 <div class="detail">4573s total, 27.06s geomean</div>
             </div>
             <div class="card winner">
                 <div class="label">Best Price × Perf</div>
                 <div class="value">SF 2XL</div>
-                <div class="detail">Score: 60 (4.6x better)</div>
+                <div class="detail">Score: 60 (17.6x better)</div>
             </div>
             <div class="card">
                 <div class="label">Best Latency</div>
@@ -353,7 +353,7 @@
         <div class="insight-box winner">
             <strong>Key Finding:</strong> SF 2XL SE is the sweet spot — delivers
             <strong>7.3x faster</strong> runtime than Athena.
-            The Cost × Geomean score (60) beats Athena (278) by 4.6x.
+            The Cost × Geomean score (60) beats Athena (1071) by 17.6x.
         </div>
 
         <h2>Included Runs</h2>
@@ -445,7 +445,8 @@
                                 <th style="padding:4px 8px;">Pricing</th>
                             </tr>
                             <tr><td style="padding:2px 8px;">Serverless</td><td style="padding:2px 8px; text-align:center;"><strong>$5.00/TB scanned</strong></td></tr>
-                            <tr><td style="padding:2px 8px;">This run</td><td style="padding:2px 8px; text-align:center;"><strong>$10.30</strong></td></tr>
+                            <tr><td style="padding:2px 8px;">Data scanned</td><td style="padding:2px 8px; text-align:center;"><strong>7920.87 GB (7.9209 TB)</strong></td></tr>
+                            <tr><td style="padding:2px 8px;">This run</td><td style="padding:2px 8px; text-align:center;"><strong>$39.60</strong></td></tr>
                         </table>
                     </td>
                 </tr>
@@ -472,21 +473,21 @@
 
         
         <div class="insight-box winner">
-            <strong>💰 Budget Match:</strong> At Athena's $10.30 budget,
-            <strong>SF L</strong> (cost: $17.12) delivers
-            <strong>2.4x faster</strong> total runtime and <strong>3.5x lower</strong> typical query latency.
+            <strong>💰 Budget Match:</strong> At Athena's $39.60 budget,
+            <strong>SF 2XL</strong> (cost: $22.57) delivers
+            <strong>7.3x faster</strong> total runtime and <strong>6.7x lower</strong> typical query latency.
         </div>
         
-        <div class="insight-box">
+        <div class="insight-box winner">
             <strong>⚡ SLA Match:</strong> To beat Athena's 27.06s typical latency,
-            <strong>SF S</strong> achieves 24.91s geomean at <strong>$18.81</strong>
-            (83% more, but 1.1x faster).
+            <strong>SF S</strong> achieves 24.91s geomean at just <strong>$18.81</strong>
+            — 53% cheaper than Athena's $39.60.
         </div>
 
         <div class="insight-box winner">
             <strong>Key Finding:</strong> SF 2XL (Enterprise Edition) is the sweet spot — delivers
             <strong>7.3x faster</strong> runtime than Athena.
-            The Cost × Geomean score (91) beats Athena (278) by 3.0x.
+            The Cost × Geomean score (91) beats Athena (1071) by 11.7x.
         </div>
 
         
@@ -539,22 +540,22 @@
                             </thead>
                             <tbody>
                                 
-                <tr class="okr-row-red">
+                <tr class="okr-row-green">
                     <td>~$0-15/hr</td>
                     <td>SF S (24.91s)</td>
                     <td>Athena (27.06s)</td>
                     <td style="text-align:right;">468</td>
-                    <td style="text-align:right;">278</td>
-                    <td style="text-align:right;font-weight:700;">-68%</td>
-                    <td style="text-align:center;">🔴</td>
+                    <td style="text-align:right;">1071</td>
+                    <td style="text-align:right;font-weight:700;">56%</td>
+                    <td style="text-align:center;">🟢</td>
                 </tr>
                 <tr class="okr-row-green">
                     <td>~$15-35/hr</td>
                     <td>SF L (7.70s)</td>
                     <td>Athena (27.06s)</td>
                     <td style="text-align:right;">131</td>
-                    <td style="text-align:right;">278</td>
-                    <td style="text-align:right;font-weight:700;">53%</td>
+                    <td style="text-align:right;">1071</td>
+                    <td style="text-align:right;font-weight:700;">88%</td>
                     <td style="text-align:center;">🟢</td>
                 </tr>
                 <tr class="okr-row-green">
@@ -562,8 +563,8 @@
                     <td>SF XL (5.27s)</td>
                     <td>Athena (27.06s)</td>
                     <td style="text-align:right;">94</td>
-                    <td style="text-align:right;">278</td>
-                    <td style="text-align:right;font-weight:700;">66%</td>
+                    <td style="text-align:right;">1071</td>
+                    <td style="text-align:right;font-weight:700;">91%</td>
                     <td style="text-align:center;">🟢</td>
                 </tr>
                 <tr class="okr-row-green">
@@ -571,15 +572,15 @@
                     <td>SF 2XL (4.05s)</td>
                     <td>Athena (27.06s)</td>
                     <td style="text-align:right;">91</td>
-                    <td style="text-align:right;">278</td>
-                    <td style="text-align:right;font-weight:700;">67%</td>
+                    <td style="text-align:right;">1071</td>
+                    <td style="text-align:right;font-weight:700;">92%</td>
                     <td style="text-align:center;">🟢</td>
                 </tr>
                             </tbody>
                         </table>
                     </div>
                     <div style="margin-top:8px;font-size:0.85em;color:#666;">
-                        🟡 Meeting target: 3/4 tiers (75%)
+                        🟢 Meeting target: 4/4 tiers (100%)
                     </div>
                 </div>
 
@@ -613,18 +614,18 @@
                     <td style="text-align:right;font-weight:700;"><span style='color:#2e7d32;'>SF only option</span></td>
                     <td style="text-align:center;">🟢</td>
                 </tr>
-                <tr class="okr-row-red">
+                <tr class="okr-row-green">
                     <td>≤30s SLA</td>
                     <td>SF S ($18.81)</td>
-                    <td>Athena ($10.30)</td>
-                    <td style="text-align:right;font-weight:700;">-45%</td>
-                    <td style="text-align:center;">🔴</td>
+                    <td>Athena ($39.60)</td>
+                    <td style="text-align:right;font-weight:700;">53%</td>
+                    <td style="text-align:center;">🟢</td>
                 </tr>
                             </tbody>
                         </table>
                     </div>
                     <div style="margin-top:8px;font-size:0.85em;color:#666;">
-                        🔴 Meeting target: 2/3 tiers (67%)
+                        🟢 Meeting target: 3/3 tiers (100%)
                     </div>
                 </div>
             </div>
@@ -656,47 +657,47 @@
                                 </thead>
                                 <tbody>
                                     
-                <tr class="okr-row-red">
+                <tr class="okr-row-green">
                     <td>~$0-15/hr</td>
                     <td>SF S — 468</td>
-                    <td>Athena — <s>278</s> → <strong>178</strong></td>
-                    <td style="text-align:right;"><s>-68%</s></td>
-                    <td style="text-align:right;font-weight:700;">-163%</td>
-                    <td style="text-align:right;color:#c62828;">−95pp</td>
-                    <td style="text-align:center;">🔴</td>
+                    <td>Athena — <s>1071</s> → <strong>685</strong></td>
+                    <td style="text-align:right;"><s>56%</s></td>
+                    <td style="text-align:right;font-weight:700;">32%</td>
+                    <td style="text-align:right;color:#c62828;">−25pp</td>
+                    <td style="text-align:center;">🟢</td>
                 </tr>
-                <tr class="okr-row-yellow">
+                <tr class="okr-row-green">
                     <td>~$15-35/hr</td>
                     <td>SF L — 131</td>
-                    <td>Athena — <s>278</s> → <strong>178</strong></td>
-                    <td style="text-align:right;"><s>53%</s></td>
-                    <td style="text-align:right;font-weight:700;">26%</td>
-                    <td style="text-align:right;color:#c62828;">−27pp</td>
-                    <td style="text-align:center;">🟡</td>
+                    <td>Athena — <s>1071</s> → <strong>685</strong></td>
+                    <td style="text-align:right;"><s>88%</s></td>
+                    <td style="text-align:right;font-weight:700;">81%</td>
+                    <td style="text-align:right;color:#c62828;">−7pp</td>
+                    <td style="text-align:center;">🟢</td>
                 </tr>
                 <tr class="okr-row-green">
                     <td>~$35-90/hr</td>
                     <td>SF XL — 94</td>
-                    <td>Athena — <s>278</s> → <strong>178</strong></td>
-                    <td style="text-align:right;"><s>66%</s></td>
-                    <td style="text-align:right;font-weight:700;">47%</td>
-                    <td style="text-align:right;color:#c62828;">−19pp</td>
+                    <td>Athena — <s>1071</s> → <strong>685</strong></td>
+                    <td style="text-align:right;"><s>91%</s></td>
+                    <td style="text-align:right;font-weight:700;">86%</td>
+                    <td style="text-align:right;color:#c62828;">−5pp</td>
                     <td style="text-align:center;">🟢</td>
                 </tr>
                 <tr class="okr-row-green">
                     <td>~$90-190/hr</td>
                     <td>SF 2XL — 91</td>
-                    <td>Athena — <s>278</s> → <strong>178</strong></td>
-                    <td style="text-align:right;"><s>67%</s></td>
-                    <td style="text-align:right;font-weight:700;">49%</td>
-                    <td style="text-align:right;color:#c62828;">−18pp</td>
+                    <td>Athena — <s>1071</s> → <strong>685</strong></td>
+                    <td style="text-align:right;"><s>92%</s></td>
+                    <td style="text-align:right;font-weight:700;">87%</td>
+                    <td style="text-align:right;color:#c62828;">−5pp</td>
                     <td style="text-align:center;">🟢</td>
                 </tr>
                                 </tbody>
                             </table>
                         </div>
                         <div style="margin-top:8px;font-size:0.85em;color:#666;">
-                            🔴 Green tiers after: 2/4 (50%)
+                            🟢 Green tiers after: 4/4 (100%)
                         </div>
                     </div>
 
@@ -736,20 +737,20 @@
                     <td style="text-align:right;">—</td>
                     <td style="text-align:center;">🟢</td>
                 </tr>
-                <tr class="okr-row-red">
+                <tr class="okr-row-green">
                     <td>≤30s SLA</td>
                     <td>SF S — $18.81</td>
-                    <td>Athena — <s>278</s> → <strong>178</strong></td>
-                    <td style="text-align:right;"><s>-45%</s></td>
-                    <td style="text-align:right;font-weight:700;">-163%</td>
-                    <td style="text-align:right;"><span style='color:#c62828;'>−118pp</span></td>
-                    <td style="text-align:center;">🔴</td>
+                    <td>Athena — <s>1071</s> → <strong>685</strong></td>
+                    <td style="text-align:right;"><s>53%</s></td>
+                    <td style="text-align:right;font-weight:700;">32%</td>
+                    <td style="text-align:right;"><span style='color:#c62828;'>−21pp</span></td>
+                    <td style="text-align:center;">🟢</td>
                 </tr>
                                 </tbody>
                             </table>
                         </div>
                         <div style="margin-top:8px;font-size:0.85em;color:#666;">
-                            🔴 Green tiers after: 2/3 (67%)
+                            🟢 Green tiers after: 3/3 (100%)
                         </div>
                     </div>
                 </div>
@@ -1068,7 +1069,7 @@
                     <td class="sf-col">7.70s</td>
                     <td class="sf-col">$17.12</td>
                     <td class="comp-col"><span style='color:#c62828;font-weight:600;'>27.06s ❌ Can't meet SLA</span></td>
-                    <td class="comp-col">$10.30</td>
+                    <td class="comp-col">$39.60</td>
                     <td class="sf-winner"><span style='color:#2e7d32;font-weight:700;'>SF only option</span></td>
                 </tr>
                 <tr>
@@ -1077,7 +1078,7 @@
                     <td class="sf-col">13.28s</td>
                     <td class="sf-col">$17.59</td>
                     <td class="comp-col"><span style='color:#c62828;font-weight:600;'>27.06s ❌ Can't meet SLA</span></td>
-                    <td class="comp-col">$10.30</td>
+                    <td class="comp-col">$39.60</td>
                     <td class="sf-winner"><span style='color:#2e7d32;font-weight:700;'>SF only option</span></td>
                 </tr>
                 <tr>
@@ -1086,8 +1087,8 @@
                     <td class="sf-col">24.91s</td>
                     <td class="sf-col">$18.81</td>
                     <td class="comp-col">27.06s</td>
-                    <td class="comp-col">$10.30</td>
-                    <td class="comp-winner">Athena saves 45%</td>
+                    <td class="comp-col">$39.60</td>
+                    <td class="sf-winner">SF saves 53%</td>
                 </tr>
                 </tbody>
             </table>
@@ -1283,7 +1284,7 @@
                 <td style="text-align:right;">24.91</td>
                 <td style="text-align:right;">$18.81</td>
                 <td style="text-align:right;">468</td>
-                <td style="text-align:right;color:#CC3333;">-68% worse</td>
+                <td style="text-align:right;color:#32963C;">56% better</td>
             </tr><tr>
                 <td><strong>SF M</strong></td>
                 <td style="text-align:right;">$16.20/hr</td>
@@ -1291,7 +1292,7 @@
                 <td style="text-align:right;">13.28</td>
                 <td style="text-align:right;">$17.59</td>
                 <td style="text-align:right;">233</td>
-                <td style="text-align:right;color:#32963C;">16% better</td>
+                <td style="text-align:right;color:#32963C;">78% better</td>
             </tr><tr>
                 <td><strong>SF L</strong></td>
                 <td style="text-align:right;">$32.40/hr</td>
@@ -1299,7 +1300,7 @@
                 <td style="text-align:right;">7.70</td>
                 <td style="text-align:right;">$17.12</td>
                 <td style="text-align:right;">131</td>
-                <td style="text-align:right;color:#32963C;">53% better</td>
+                <td style="text-align:right;color:#32963C;">88% better</td>
             </tr><tr>
                 <td><strong>SF XL</strong></td>
                 <td style="text-align:right;">$64.80/hr</td>
@@ -1307,7 +1308,7 @@
                 <td style="text-align:right;">5.27</td>
                 <td style="text-align:right;">$17.84</td>
                 <td style="text-align:right;">94</td>
-                <td style="text-align:right;color:#32963C;">66% better</td>
+                <td style="text-align:right;color:#32963C;">91% better</td>
             </tr><tr style="background:#e8f5e9;">
                 <td><strong>SF 2XL</strong>  ⭐</td>
                 <td style="text-align:right;">$129.60/hr</td>
@@ -1315,15 +1316,15 @@
                 <td style="text-align:right;">4.05</td>
                 <td style="text-align:right;">$22.57</td>
                 <td style="text-align:right;">91</td>
-                <td style="text-align:right;color:#32963C;">67% better</td>
+                <td style="text-align:right;color:#32963C;">92% better</td>
             </tr>
                     <tr style="background:#fff8f0;">
                         <td><strong>Athena</strong></td>
                         <td style="text-align:right;color:#999;">serverless</td>
                         <td style="text-align:right;">4,573</td>
                         <td style="text-align:right;">27.06</td>
-                        <td style="text-align:right;">$10.30</td>
-                        <td style="text-align:right;">278</td>
+                        <td style="text-align:right;">$39.60</td>
+                        <td style="text-align:right;">1071</td>
                         <td style="text-align:right;color:#999;">baseline</td>
                     </tr>
                 </tbody>
@@ -1618,21 +1619,21 @@
 
         
         <div class="insight-box winner">
-            <strong>💰 Budget Match:</strong> At Athena's $10.30 budget,
-            <strong>SF L</strong> (cost: $11.41) delivers
-            <strong>2.4x faster</strong> total runtime and <strong>3.5x lower</strong> typical query latency.
+            <strong>💰 Budget Match:</strong> At Athena's $39.60 budget,
+            <strong>SF 2XL</strong> (cost: $15.05) delivers
+            <strong>7.3x faster</strong> total runtime and <strong>6.7x lower</strong> typical query latency.
         </div>
         
-        <div class="insight-box">
+        <div class="insight-box winner">
             <strong>⚡ SLA Match:</strong> To beat Athena's 27.06s typical latency,
-            <strong>SF S</strong> achieves 24.91s geomean at <strong>$12.54</strong>
-            (22% more, but 1.1x faster).
+            <strong>SF S</strong> achieves 24.91s geomean at just <strong>$12.54</strong>
+            — 68% cheaper than Athena's $39.60.
         </div>
 
         <div class="insight-box winner">
             <strong>Key Finding:</strong> SF 2XL (Standard Edition) is the sweet spot — delivers
             <strong>7.3x faster</strong> runtime than Athena.
-            The Cost × Geomean score (60) beats Athena (278) by 4.6x.
+            The Cost × Geomean score (60) beats Athena (1071) by 17.6x.
         </div>
 
         
@@ -1685,22 +1686,22 @@
                             </thead>
                             <tbody>
                                 
-                <tr class="okr-row-red">
+                <tr class="okr-row-green">
                     <td>~$0-10/hr</td>
                     <td>SF S (24.91s)</td>
                     <td>Athena (27.06s)</td>
                     <td style="text-align:right;">312</td>
-                    <td style="text-align:right;">278</td>
-                    <td style="text-align:right;font-weight:700;">-12%</td>
-                    <td style="text-align:center;">🔴</td>
+                    <td style="text-align:right;">1071</td>
+                    <td style="text-align:right;font-weight:700;">71%</td>
+                    <td style="text-align:center;">🟢</td>
                 </tr>
                 <tr class="okr-row-green">
                     <td>~$10-25/hr</td>
                     <td>SF L (7.70s)</td>
                     <td>Athena (27.06s)</td>
                     <td style="text-align:right;">87</td>
-                    <td style="text-align:right;">278</td>
-                    <td style="text-align:right;font-weight:700;">68%</td>
+                    <td style="text-align:right;">1071</td>
+                    <td style="text-align:right;font-weight:700;">92%</td>
                     <td style="text-align:center;">🟢</td>
                 </tr>
                 <tr class="okr-row-green">
@@ -1708,8 +1709,8 @@
                     <td>SF XL (5.27s)</td>
                     <td>Athena (27.06s)</td>
                     <td style="text-align:right;">62</td>
-                    <td style="text-align:right;">278</td>
-                    <td style="text-align:right;font-weight:700;">78%</td>
+                    <td style="text-align:right;">1071</td>
+                    <td style="text-align:right;font-weight:700;">94%</td>
                     <td style="text-align:center;">🟢</td>
                 </tr>
                 <tr class="okr-row-green">
@@ -1717,15 +1718,15 @@
                     <td>SF 2XL (4.05s)</td>
                     <td>Athena (27.06s)</td>
                     <td style="text-align:right;">61</td>
-                    <td style="text-align:right;">278</td>
-                    <td style="text-align:right;font-weight:700;">78%</td>
+                    <td style="text-align:right;">1071</td>
+                    <td style="text-align:right;font-weight:700;">94%</td>
                     <td style="text-align:center;">🟢</td>
                 </tr>
                             </tbody>
                         </table>
                     </div>
                     <div style="margin-top:8px;font-size:0.85em;color:#666;">
-                        🟡 Meeting target: 3/4 tiers (75%)
+                        🟢 Meeting target: 4/4 tiers (100%)
                     </div>
                 </div>
 
@@ -1759,18 +1760,18 @@
                     <td style="text-align:right;font-weight:700;"><span style='color:#2e7d32;'>SF only option</span></td>
                     <td style="text-align:center;">🟢</td>
                 </tr>
-                <tr class="okr-row-red">
+                <tr class="okr-row-green">
                     <td>≤30s SLA</td>
                     <td>SF S ($12.54)</td>
-                    <td>Athena ($10.30)</td>
-                    <td style="text-align:right;font-weight:700;">-18%</td>
-                    <td style="text-align:center;">🔴</td>
+                    <td>Athena ($39.60)</td>
+                    <td style="text-align:right;font-weight:700;">68%</td>
+                    <td style="text-align:center;">🟢</td>
                 </tr>
                             </tbody>
                         </table>
                     </div>
                     <div style="margin-top:8px;font-size:0.85em;color:#666;">
-                        🔴 Meeting target: 2/3 tiers (67%)
+                        🟢 Meeting target: 3/3 tiers (100%)
                     </div>
                 </div>
             </div>
@@ -1802,47 +1803,47 @@
                                 </thead>
                                 <tbody>
                                     
-                <tr class="okr-row-red">
+                <tr class="okr-row-green">
                     <td>~$0-10/hr</td>
                     <td>SF S — 312</td>
-                    <td>Athena — <s>278</s> → <strong>178</strong></td>
-                    <td style="text-align:right;"><s>-12%</s></td>
-                    <td style="text-align:right;font-weight:700;">-75%</td>
-                    <td style="text-align:right;color:#c62828;">−63pp</td>
-                    <td style="text-align:center;">🔴</td>
+                    <td>Athena — <s>1071</s> → <strong>685</strong></td>
+                    <td style="text-align:right;"><s>71%</s></td>
+                    <td style="text-align:right;font-weight:700;">54%</td>
+                    <td style="text-align:right;color:#c62828;">−16pp</td>
+                    <td style="text-align:center;">🟢</td>
                 </tr>
                 <tr class="okr-row-green">
                     <td>~$10-25/hr</td>
                     <td>SF L — 87</td>
-                    <td>Athena — <s>278</s> → <strong>178</strong></td>
-                    <td style="text-align:right;"><s>68%</s></td>
-                    <td style="text-align:right;font-weight:700;">51%</td>
-                    <td style="text-align:right;color:#c62828;">−18pp</td>
+                    <td>Athena — <s>1071</s> → <strong>685</strong></td>
+                    <td style="text-align:right;"><s>92%</s></td>
+                    <td style="text-align:right;font-weight:700;">87%</td>
+                    <td style="text-align:right;color:#c62828;">−5pp</td>
                     <td style="text-align:center;">🟢</td>
                 </tr>
                 <tr class="okr-row-green">
                     <td>~$25-60/hr</td>
                     <td>SF XL — 62</td>
-                    <td>Athena — <s>278</s> → <strong>178</strong></td>
-                    <td style="text-align:right;"><s>78%</s></td>
-                    <td style="text-align:right;font-weight:700;">65%</td>
-                    <td style="text-align:right;color:#c62828;">−13pp</td>
+                    <td>Athena — <s>1071</s> → <strong>685</strong></td>
+                    <td style="text-align:right;"><s>94%</s></td>
+                    <td style="text-align:right;font-weight:700;">91%</td>
+                    <td style="text-align:right;color:#c62828;">−3pp</td>
                     <td style="text-align:center;">🟢</td>
                 </tr>
                 <tr class="okr-row-green">
                     <td>~$60-130/hr</td>
                     <td>SF 2XL — 61</td>
-                    <td>Athena — <s>278</s> → <strong>178</strong></td>
-                    <td style="text-align:right;"><s>78%</s></td>
-                    <td style="text-align:right;font-weight:700;">66%</td>
-                    <td style="text-align:right;color:#c62828;">−12pp</td>
+                    <td>Athena — <s>1071</s> → <strong>685</strong></td>
+                    <td style="text-align:right;"><s>94%</s></td>
+                    <td style="text-align:right;font-weight:700;">91%</td>
+                    <td style="text-align:right;color:#c62828;">−3pp</td>
                     <td style="text-align:center;">🟢</td>
                 </tr>
                                 </tbody>
                             </table>
                         </div>
                         <div style="margin-top:8px;font-size:0.85em;color:#666;">
-                            🟡 Green tiers after: 3/4 (75%)
+                            🟢 Green tiers after: 4/4 (100%)
                         </div>
                     </div>
 
@@ -1882,20 +1883,20 @@
                     <td style="text-align:right;">—</td>
                     <td style="text-align:center;">🟢</td>
                 </tr>
-                <tr class="okr-row-red">
+                <tr class="okr-row-green">
                     <td>≤30s SLA</td>
                     <td>SF S — $12.54</td>
-                    <td>Athena — <s>278</s> → <strong>178</strong></td>
-                    <td style="text-align:right;"><s>-18%</s></td>
-                    <td style="text-align:right;font-weight:700;">-75%</td>
-                    <td style="text-align:right;"><span style='color:#c62828;'>−57pp</span></td>
-                    <td style="text-align:center;">🔴</td>
+                    <td>Athena — <s>1071</s> → <strong>685</strong></td>
+                    <td style="text-align:right;"><s>68%</s></td>
+                    <td style="text-align:right;font-weight:700;">54%</td>
+                    <td style="text-align:right;"><span style='color:#c62828;'>−14pp</span></td>
+                    <td style="text-align:center;">🟢</td>
                 </tr>
                                 </tbody>
                             </table>
                         </div>
                         <div style="margin-top:8px;font-size:0.85em;color:#666;">
-                            🔴 Green tiers after: 2/3 (67%)
+                            🟢 Green tiers after: 3/3 (100%)
                         </div>
                     </div>
                 </div>
@@ -2214,7 +2215,7 @@
                     <td class="sf-col">7.70s</td>
                     <td class="sf-col">$11.41</td>
                     <td class="comp-col"><span style='color:#c62828;font-weight:600;'>27.06s ❌ Can't meet SLA</span></td>
-                    <td class="comp-col">$10.30</td>
+                    <td class="comp-col">$39.60</td>
                     <td class="sf-winner"><span style='color:#2e7d32;font-weight:700;'>SF only option</span></td>
                 </tr>
                 <tr>
@@ -2223,7 +2224,7 @@
                     <td class="sf-col">13.28s</td>
                     <td class="sf-col">$11.72</td>
                     <td class="comp-col"><span style='color:#c62828;font-weight:600;'>27.06s ❌ Can't meet SLA</span></td>
-                    <td class="comp-col">$10.30</td>
+                    <td class="comp-col">$39.60</td>
                     <td class="sf-winner"><span style='color:#2e7d32;font-weight:700;'>SF only option</span></td>
                 </tr>
                 <tr>
@@ -2232,8 +2233,8 @@
                     <td class="sf-col">24.91s</td>
                     <td class="sf-col">$12.54</td>
                     <td class="comp-col">27.06s</td>
-                    <td class="comp-col">$10.30</td>
-                    <td class="comp-winner">Athena saves 18%</td>
+                    <td class="comp-col">$39.60</td>
+                    <td class="sf-winner">SF saves 68%</td>
                 </tr>
                 </tbody>
             </table>
@@ -2429,7 +2430,7 @@
                 <td style="text-align:right;">24.91</td>
                 <td style="text-align:right;">$12.54</td>
                 <td style="text-align:right;">312</td>
-                <td style="text-align:right;color:#CC3333;">-12% worse</td>
+                <td style="text-align:right;color:#32963C;">71% better</td>
             </tr><tr>
                 <td><strong>SF M</strong></td>
                 <td style="text-align:right;">$10.80/hr</td>
@@ -2437,7 +2438,7 @@
                 <td style="text-align:right;">13.28</td>
                 <td style="text-align:right;">$11.72</td>
                 <td style="text-align:right;">155</td>
-                <td style="text-align:right;color:#32963C;">44% better</td>
+                <td style="text-align:right;color:#32963C;">86% better</td>
             </tr><tr>
                 <td><strong>SF L</strong></td>
                 <td style="text-align:right;">$21.60/hr</td>
@@ -2445,7 +2446,7 @@
                 <td style="text-align:right;">7.70</td>
                 <td style="text-align:right;">$11.41</td>
                 <td style="text-align:right;">87</td>
-                <td style="text-align:right;color:#32963C;">69% better</td>
+                <td style="text-align:right;color:#32963C;">92% better</td>
             </tr><tr>
                 <td><strong>SF XL</strong></td>
                 <td style="text-align:right;">$43.20/hr</td>
@@ -2453,7 +2454,7 @@
                 <td style="text-align:right;">5.27</td>
                 <td style="text-align:right;">$11.90</td>
                 <td style="text-align:right;">62</td>
-                <td style="text-align:right;color:#32963C;">78% better</td>
+                <td style="text-align:right;color:#32963C;">94% better</td>
             </tr><tr style="background:#e8f5e9;">
                 <td><strong>SF 2XL</strong>  ⭐</td>
                 <td style="text-align:right;">$86.40/hr</td>
@@ -2461,15 +2462,15 @@
                 <td style="text-align:right;">4.05</td>
                 <td style="text-align:right;">$15.05</td>
                 <td style="text-align:right;">60</td>
-                <td style="text-align:right;color:#32963C;">78% better</td>
+                <td style="text-align:right;color:#32963C;">94% better</td>
             </tr>
                     <tr style="background:#fff8f0;">
                         <td><strong>Athena</strong></td>
                         <td style="text-align:right;color:#999;">serverless</td>
                         <td style="text-align:right;">4,573</td>
                         <td style="text-align:right;">27.06</td>
-                        <td style="text-align:right;">$10.30</td>
-                        <td style="text-align:right;">278</td>
+                        <td style="text-align:right;">$39.60</td>
+                        <td style="text-align:right;">1071</td>
                         <td style="text-align:right;color:#999;">baseline</td>
                     </tr>
                 </tbody>
@@ -3717,9 +3718,9 @@
     <!-- FOOTER                                                              -->
     <!-- ================================================================== -->
     <div class="footer">
-        <p><strong>Generated:</strong> 2026-03-10 12:19 | <strong>Published:</strong> 2026-03-10 | <strong>Data:</strong> TPC-DS 10TB</p>
+        <p><strong>Generated:</strong> 2026-03-10 13:28 | <strong>Published:</strong> 2026-03-10 | <strong>Data:</strong> TPC-DS 10TB</p>
         <p><strong>SF Pricing:</strong> SE @$2/credit, EE @$3/credit (Gen2) | <strong>SF Sizes:</strong> S, M, L, XL, 2XL</p>
-        <p><strong>Athena Cost:</strong> $10.30 ($5/TB × data scanned)</p>
+        <p><strong>Athena Cost:</strong> $39.60 (7920.87 GB scanned × $5/TB)</p>
         <p><strong>Run Keys:</strong> SF: 3868562, 3868563, 3868564, 3868565, 3868566 | Athena: 3473166</p>
         <p><strong>Generator:</strong> <code>scripts/generate-tpcds-price-perf.py</code></p>
     </div>
@@ -3751,7 +3752,7 @@
         // ================================================================
         const sfSeData = [{"size": "S", "cost": 12.54, "geomean": 24.91, "total": 8362.2, "price_perf": 312.4}, {"size": "M", "cost": 11.72, "geomean": 13.28, "total": 3908.2, "price_perf": 155.6}, {"size": "L", "cost": 11.41, "geomean": 7.7, "total": 1902.1, "price_perf": 87.9}, {"size": "XL", "cost": 11.9, "geomean": 5.27, "total": 991.3, "price_perf": 62.7}, {"size": "2XL", "cost": 15.05, "geomean": 4.05, "total": 626.9, "price_perf": 61.0}];
         const sfEeData = [{"size": "S", "cost": 18.81, "geomean": 24.91, "total": 8362.2, "price_perf": 468.6}, {"size": "M", "cost": 17.59, "geomean": 13.28, "total": 3908.2, "price_perf": 233.6}, {"size": "L", "cost": 17.12, "geomean": 7.7, "total": 1902.1, "price_perf": 131.8}, {"size": "XL", "cost": 17.84, "geomean": 5.27, "total": 991.3, "price_perf": 94.0}, {"size": "2XL", "cost": 22.57, "geomean": 4.05, "total": 626.9, "price_perf": 91.4}];
-        const compData = {"cost": 10.3, "geomean": 27.06, "total": 4573.1, "price_perf": 278.7};
+        const compData = {"cost": 39.6043605, "geomean": 27.06, "total": 4573.1, "price_perf": 1071.7};
         const allSizes = ["S", "M", "L", "XL", "2XL"];
 
         let currentScale = 'linear';
@@ -3872,7 +3873,7 @@
             });
 
             // 5. Scatter: Cost vs Geomean
-            const frontierData = [{"label": "SF S", "cost": 12.54, "geomean": 24.91, "total": 8362.2, "is_best": false, "is_sf": true}, {"label": "SF M", "cost": 11.72, "geomean": 13.28, "total": 3908.2, "is_best": false, "is_sf": true}, {"label": "SF L", "cost": 11.41, "geomean": 7.7, "total": 1902.1, "is_best": false, "is_sf": true}, {"label": "SF XL", "cost": 11.9, "geomean": 5.27, "total": 991.3, "is_best": false, "is_sf": true}, {"label": "SF 2XL", "cost": 15.05, "geomean": 4.05, "total": 626.9, "is_best": true, "is_sf": true}, {"label": "Athena", "cost": 10.3, "geomean": 27.06, "total": 4573.1, "is_best": false, "is_sf": false}];
+            const frontierData = [{"label": "SF S", "cost": 12.54, "geomean": 24.91, "total": 8362.2, "is_best": false, "is_sf": true}, {"label": "SF M", "cost": 11.72, "geomean": 13.28, "total": 3908.2, "is_best": false, "is_sf": true}, {"label": "SF L", "cost": 11.41, "geomean": 7.7, "total": 1902.1, "is_best": false, "is_sf": true}, {"label": "SF XL", "cost": 11.9, "geomean": 5.27, "total": 991.3, "is_best": false, "is_sf": true}, {"label": "SF 2XL", "cost": 15.05, "geomean": 4.05, "total": 626.9, "is_best": true, "is_sf": true}, {"label": "Athena", "cost": 39.6043605, "geomean": 27.06, "total": 4573.1, "is_best": false, "is_sf": false}];
             const sfPts = frontierData.filter(d => d.is_sf);
             const compPt = frontierData.find(d => !d.is_sf);
 
