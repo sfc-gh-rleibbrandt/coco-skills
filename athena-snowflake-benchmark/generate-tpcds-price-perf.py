@@ -200,7 +200,7 @@ def fetch_query_times(conn, run_key: int, platform: str) -> Dict[str, float]:
     """Fetch query times for a run, returning dict of query -> seconds."""
 
     if platform == 'snowflake':
-        metric_field = "metrics:TOTAL_DURATION_MS::FLOAT / 1000"
+        metric_field = "COALESCE(metrics:\"TOTAL_DURATION_MS\"::FLOAT, metrics:\"ELAPSED_TIME_MS\"::FLOAT) / 1000"
     else:  # Athena, etc. — e2e_latency is in milliseconds
         metric_field = "metrics:\"e2e_latency\"::FLOAT / 1000"
 
@@ -946,7 +946,8 @@ def generate_html(
     sf_data: Dict[str, Dict],
     competitor_data: Dict,
     output_path: str,
-    publish_date: Optional[str] = None
+    publish_date: Optional[str] = None,
+    sf_label: str = 'Gen2 Iceberg'
 ):
     """Generate the complete HTML report with both SE and EE analysis."""
 
@@ -1860,7 +1861,7 @@ def generate_html(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TPC-DS 10TB: Snowflake vs {competitor_name}{publish_title_suffix}</title>
+    <title>TPC-DS 10TB: Snowflake {sf_label} vs {competitor_name}{publish_title_suffix}</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         :root {{
@@ -2157,7 +2158,7 @@ def generate_html(
 </head>
 <body>
     <h1>TPC-DS 10TB: Snowflake vs {competitor_name} {publish_badge}</h1>
-    <p class="subtitle">Price:Performance Comparison — Snowflake Gen2 Iceberg vs {competitor_name} Serverless</p>
+    <p class="subtitle">Price:Performance Comparison — Snowflake {sf_label} vs {competitor_name} Serverless</p>
 
     <div class="model-note">
         <strong>⚠️ Different pricing models:</strong>
@@ -2241,7 +2242,7 @@ def generate_html(
             <table style="margin-top:10px; font-size:0.9em; width:100%;">
                 <tr>
                     <td style="padding-right:20px; vertical-align:top; width:50%;">
-                        <strong>Snowflake Gen2 (AWS)</strong><br>
+                        <strong>Snowflake {sf_label}</strong><br>
                         <em>Gen2 = 1.35× Gen1 credits/hr</em><br><br>
                         {pricing_table}
                     </td>
@@ -3072,6 +3073,8 @@ def main():
     parser.add_argument('--competitor-run', required=True, type=int, help='Competitor run key')
     parser.add_argument('--competitor-name', required=True, help='Competitor name (e.g., Athena)')
     parser.add_argument('--competitor-cost', required=True, type=float, help='Competitor cost in USD')
+    parser.add_argument('--sf-label', default='Gen2 Iceberg',
+                        help='Label for SF data format in report (e.g., "Gen2 Managed Iceberg")')
     parser.add_argument('--output', required=True, help='Output HTML file path')
     parser.add_argument('--publish', action='store_true',
                         help='Publish report to results/competitive/ with date-stamped filename')
@@ -3121,7 +3124,7 @@ def main():
 
     # Generate report
     print("Generating HTML report...")
-    generate_html(sf_data, competitor_data, args.output, publish_date=publish_date)
+    generate_html(sf_data, competitor_data, args.output, publish_date=publish_date, sf_label=args.sf_label)
 
     # Publish to results folder
     if args.publish:

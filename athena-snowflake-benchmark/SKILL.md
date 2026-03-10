@@ -11,32 +11,77 @@ trigger_patterns:
 
 # Athena vs Snowflake TPC-DS Benchmark Skill
 
-Generate comprehensive price:performance comparison reports between Snowflake Gen2 Iceberg and AWS Athena on TPC-DS 10TB.
+Generate comprehensive price:performance comparison reports between Snowflake Gen2 Iceberg and AWS Athena on TPC-DS 10TB. Supports both **Managed Iceberg** and **Unmanaged Iceberg** comparisons.
 
 ## Quick Start
 
-Generate a report using the Python generator:
+Generate reports using the Python generator:
 
+### Managed Iceberg vs Athena (default)
 ```bash
-python /Users/rleibbrandt/codePad/projects/benchmarking/scripts/generate-tpcds-price-perf.py \
-  --sf-runs 3761057,3761059,3761060,3760798,3761053 \
+python3 /Users/rleibbrandt/codePad/projects/benchmarking/scripts/generate-tpcds-price-perf.py \
+  --sf-runs 3868554,3868555,3868556,3868558,3868559 \
   --sf-sizes S,M,L,XL,2XL \
+  --sf-label "Gen2 Managed Iceberg" \
   --competitor-run 3473166 \
   --competitor-name "Athena" \
   --competitor-cost 10.30 \
-  --output notes/artifacts/sf-vs-athena-10tb.html
+  --output notes/artifacts/sf-managed-ib-vs-athena-10tb.html \
+  --publish
+```
+
+### Unmanaged Iceberg vs Athena
+```bash
+python3 /Users/rleibbrandt/codePad/projects/benchmarking/scripts/generate-tpcds-price-perf.py \
+  --sf-runs 3868562,3868563,3868564,3868565,3868566 \
+  --sf-sizes S,M,L,XL,2XL \
+  --sf-label "Gen2 Unmanaged Iceberg" \
+  --competitor-run 3473166 \
+  --competitor-name "Athena" \
+  --competitor-cost 10.30 \
+  --output notes/artifacts/sf-unmanaged-ib-vs-athena-10tb.html \
+  --publish
+```
+
+### Offline Mode (no Snowflake connection needed)
+
+If browser auth is unavailable, pre-fetch data as JSON and use the offline generator:
+```bash
+python3 /Users/rleibbrandt/codePad/projects/benchmarking/scripts/generate-reports-offline.py \
+  --data-file data/managed-ib-vs-athena-2026-03-10.json \
+  --sf-label "Gen2 Managed Iceberg" \
+  --output notes/artifacts/sf-managed-ib-vs-athena-10tb.html \
+  --publish
 ```
 
 ## Default Run Keys
 
-### Snowflake Gen2 Iceberg (TPC-DS 10TB Warm)
+### Snowflake Gen2 Managed Iceberg (SfIB-v2) — TPC-DS 10TB Warm (2026-03-04)
 | Size | Run Key | Credits/hr | Gen2 SE Rate |
 |------|---------|------------|--------------|
-| S    | 3761057 | 2          | $2.70/cr     |
-| M    | 3761059 | 4          | $2.70/cr     |
-| L    | 3761060 | 8          | $2.70/cr     |
-| XL   | 3760798 | 16         | $2.70/cr     |
-| 2XL  | 3761053 | 32         | $2.70/cr     |
+| S    | 3868554 | 2          | $2.70/cr     |
+| M    | 3868555 | 4          | $2.70/cr     |
+| L    | 3868556 | 8          | $2.70/cr     |
+| XL   | 3868558 | 16         | $2.70/cr     |
+| 2XL  | 3868559 | 32         | $2.70/cr     |
+
+### Snowflake Gen2 Unmanaged Iceberg (SfIB-v3) — TPC-DS 10TB Warm (2026-03-04)
+| Size | Run Key | Credits/hr | Gen2 SE Rate |
+|------|---------|------------|--------------|
+| S    | 3868562 | 2          | $2.70/cr     |
+| M    | 3868563 | 4          | $2.70/cr     |
+| L    | 3868564 | 8          | $2.70/cr     |
+| XL   | 3868565 | 16         | $2.70/cr     |
+| 2XL  | 3868566 | 32         | $2.70/cr     |
+
+### Previous Managed Iceberg Run Keys (2026-02-26)
+| Size | Run Key |
+|------|---------|
+| S    | 3761057 |
+| M    | 3761059 |
+| L    | 3761060 |
+| XL   | 3760798 |
+| 2XL  | 3761053 |
 
 ### Athena (TPC-DS 10TB)
 | Run Key | Data Scanned | Cost Model      |
@@ -49,11 +94,12 @@ python /Users/rleibbrandt/codePad/projects/benchmarking/scripts/generate-tpcds-p
 |-----------|----------|-------------|
 | `--sf-runs` | Yes | Comma-separated Snowflake run keys (must match size order) |
 | `--sf-sizes` | Yes | Comma-separated sizes: XS, S, M, L, XL, 2XL, 3XL, 4XL |
+| `--sf-label` | No | Label for SF data format in report (default: "Gen2 Iceberg"). Use "Gen2 Managed Iceberg" or "Gen2 Unmanaged Iceberg" |
 | `--competitor-run` | Yes | Competitor run key from bench_store |
 | `--competitor-name` | Yes | Display name (e.g., "Athena") |
 | `--competitor-cost` | Yes | Competitor total cost in USD |
 | `--output` | Yes | Output HTML file path |
-| `--publish` | No | Copy report to `results/competitive/` with date-stamped filename |
+| `--publish` | No | Copy report to `results/competitive/` with date-stamped filename + `_latest` copy |
 
 ## Pricing Models
 
@@ -139,36 +185,52 @@ All self-contained — no external dependencies except Chart.js CDN (pinned to 4
 When you're happy with the report, add `--publish` to the command:
 
 ```bash
-python scripts/generate-tpcds-price-perf.py \
-  --sf-runs 3761057,3761059,3761060,3760798,3761053 \
+# Managed Iceberg (also publishes as default sf-vs-athena)
+python3 scripts/generate-tpcds-price-perf.py \
+  --sf-runs 3868554,3868555,3868556,3868558,3868559 \
   --sf-sizes S,M,L,XL,2XL \
+  --sf-label "Gen2 Managed Iceberg" \
   --competitor-run 3473166 \
   --competitor-name "Athena" \
   --competitor-cost 10.30 \
-  --output notes/artifacts/sf-vs-athena-10tb.html \
+  --output notes/artifacts/sf-managed-ib-vs-athena-10tb.html \
+  --publish
+
+# Unmanaged Iceberg
+python3 scripts/generate-tpcds-price-perf.py \
+  --sf-runs 3868562,3868563,3868564,3868565,3868566 \
+  --sf-sizes S,M,L,XL,2XL \
+  --sf-label "Gen2 Unmanaged Iceberg" \
+  --competitor-run 3473166 \
+  --competitor-name "Athena" \
+  --competitor-cost 10.30 \
+  --output notes/artifacts/sf-unmanaged-ib-vs-athena-10tb.html \
   --publish
 ```
 
 This will:
 - Generate the report at `--output` as usual
-- Copy it to `results/competitive/sf-vs-athena-tpcds-10tb-YYYY-MM-DD.html`
+- Copy it to `results/competitive/sf-vs-athena-tpcds-10tb-YYYY-MM-DD.html` + `_latest.html`
 - Embed the publish date in the report header (green badge), `<title>` tag, and footer
 
-**File naming:** `sf-vs-{competitor}-tpcds-10tb-{YYYY-MM-DD}.html`
-Example: `results/competitive/sf-vs-athena-tpcds-10tb-2026-02-21.html`
+**Published file naming convention:**
+- Managed: `sf-managed-ib-vs-athena-tpcds-10tb-{YYYY-MM-DD}.html` + `_latest.html`
+- Unmanaged: `sf-unmanaged-ib-vs-athena-tpcds-10tb-{YYYY-MM-DD}.html` + `_latest.html`
+- Default (backward compat): `sf-vs-athena-tpcds-10tb-{YYYY-MM-DD}.html` + `_latest.html`
 
 ## Example: Regenerate Default Report (Draft)
 
 ```bash
 cd /Users/rleibbrandt/codePad/projects/benchmarking
 
-python scripts/generate-tpcds-price-perf.py \
-  --sf-runs 3761057,3761059,3761060,3760798,3761053 \
+python3 scripts/generate-tpcds-price-perf.py \
+  --sf-runs 3868554,3868555,3868556,3868558,3868559 \
   --sf-sizes S,M,L,XL,2XL \
+  --sf-label "Gen2 Managed Iceberg" \
   --competitor-run 3473166 \
   --competitor-name "Athena" \
   --competitor-cost 10.30 \
-  --output notes/artifacts/sf-vs-athena-$(date +%Y%m%d).html
+  --output notes/artifacts/sf-managed-ib-vs-athena-$(date +%Y%m%d).html
 ```
 
 ## Troubleshooting
@@ -189,6 +251,6 @@ ORDER BY 1;
 ```
 
 ### Time Units
-- Snowflake times are in **milliseconds** (`metrics:TOTAL_DURATION_MS`)
+- Snowflake times use **COALESCE** across metric keys: `COALESCE(metrics:"TOTAL_DURATION_MS", metrics:"ELAPSED_TIME_MS")` (milliseconds)
 - Athena times are in **milliseconds** (`metrics:"e2e_latency"`)
 - The script divides both platforms' times by 1000 to get seconds for display
