@@ -4473,6 +4473,12 @@ def main():
         publish_path = os.path.join(results_dir, publish_filename)
         shutil.copy2(args.output, publish_path)
         print(f"Published: {publish_path}")
+
+        # Also publish a _latest copy so index.html always points to current
+        latest_filename = "sf-vs-databricks-tpcds-10tb_latest.html"
+        latest_path = os.path.join(results_dir, latest_filename)
+        shutil.copy2(args.output, latest_path)
+        print(f"Latest:    {latest_path}")
     
     print("Done!")
 
