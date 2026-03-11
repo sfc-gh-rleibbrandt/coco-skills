@@ -1,0 +1,2291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BI Concurrency 3TB: Snowflake vs Athena — Managed Iceberg | 2026-03-10</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    
+    <style>
+        :root {
+            --sf-blue: #29B5E8;
+            --sf-dark-blue: #11567F;
+            --sf-navy: #0D2C54;
+            --sf-light-bg: #F4FAFF;
+            --sf-gray: #6E7681;
+            --comp-orange: #FF9900;
+            --comp-light: #FFF8F0;
+            --green: #32963C;
+            --red: #B43232;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            background: #fff;
+            color: #333;
+            line-height: 1.5;
+        }
+
+        h1 {
+            color: var(--sf-dark-blue);
+            border-bottom: 3px solid var(--sf-blue);
+            padding-bottom: 10px;
+            margin-bottom: 5px;
+        }
+
+        .subtitle { color: var(--sf-gray); margin-bottom: 20px; font-size: 1.1em; }
+
+        h2 {
+            color: var(--sf-dark-blue);
+            margin-top: 35px;
+            border-left: 4px solid var(--sf-blue);
+            padding-left: 12px;
+            font-size: 1.3em;
+        }
+
+        h3 { color: var(--sf-dark-blue); margin-top: 25px; }
+
+        .tab-nav {
+            display: flex;
+            gap: 0;
+            margin: 20px 0;
+            border-bottom: 2px solid var(--sf-blue);
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            padding: 12px 24px;
+            background: var(--sf-light-bg);
+            border: 2px solid var(--sf-blue);
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            color: var(--sf-dark-blue);
+            transition: all 0.2s;
+            margin-right: 4px;
+        }
+
+        .tab-btn:hover { background: #d8eef8; }
+        .tab-btn.active { background: var(--sf-blue); color: white; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .summary-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .card {
+            background: var(--sf-light-bg);
+            padding: 18px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .card.sf { background: var(--sf-blue); color: white; }
+        .card.comp { background: var(--comp-orange); color: white; }
+        .card.winner { background: var(--green); color: white; }
+
+        .card .label { font-size: 0.85em; opacity: 0.9; }
+        .card .value { font-size: 1.6em; font-weight: bold; margin: 4px 0; }
+        .card .detail { font-size: 0.75em; opacity: 0.8; }
+
+        .chart-container {
+            position: relative;
+            margin: 20px 0;
+            padding: 15px;
+            background: #fafcff;
+            border-radius: 8px;
+            border: 1px solid #e8f4fc;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82em;
+        }
+
+        th {
+            background: linear-gradient(135deg, var(--sf-dark-blue) 0%, var(--sf-navy) 100%);
+            color: white;
+            padding: 10px 8px;
+            text-align: right;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        th:first-child { text-align: left; }
+        th.comp { background: linear-gradient(135deg, #FF9900 0%, #CC7A00 100%); }
+
+        td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #E8F4FC;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        td:first-child {
+            text-align: left;
+            font-weight: 500;
+            color: var(--sf-dark-blue);
+        }
+
+        tr:nth-child(even) { background: #FAFCFF; }
+        tr:hover { background: #E8F4FC; }
+
+        .winner-cell {
+            background: #E8F5E9 !important;
+            color: var(--green);
+            font-weight: 700;
+        }
+
+        .loss-cell {
+            background: #FFEBEE !important;
+            color: var(--red);
+        }
+
+        .insight-box {
+            background: #E8F4FC;
+            border-left: 4px solid var(--sf-blue);
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .insight-box.winner {
+            background: #e8f5e9;
+            border-left-color: var(--green);
+        }
+
+        .insight-box.warning {
+            background: #fff8e1;
+            border-left-color: #f9a825;
+        }
+
+        .model-note {
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 20px 0;
+            font-size: 0.9em;
+        }
+
+        .model-note strong { color: var(--sf-dark-blue); }
+
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 0.8em;
+            color: var(--sf-gray);
+        }
+
+        .query-name {
+            cursor: help;
+            border-bottom: 1px dotted var(--sf-gray);
+            position: relative;
+        }
+
+        .query-name:hover::after {
+            content: attr(data-desc);
+            position: absolute;
+            left: 0;
+            top: 100%;
+            background: var(--sf-navy);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            font-weight: normal;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            max-width: 350px;
+            white-space: normal;
+            line-height: 1.4;
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .sub-tab-nav {
+            display: flex;
+            gap: 0;
+            margin: 15px 0 10px;
+            border-bottom: 2px solid #ccc;
+        }
+
+        .sub-tab-btn {
+            padding: 8px 20px;
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+            color: var(--sf-gray);
+            transition: all 0.2s;
+            margin-right: 2px;
+        }
+
+        .sub-tab-btn:hover { background: #e0e0e0; }
+        .sub-tab-btn.active { background: var(--sf-dark-blue); color: white; border-color: var(--sf-dark-blue); }
+
+        .sub-tab-content { display: none; }
+        .sub-tab-content.active { display: block; }
+    </style>
+
+</head>
+<body>
+    <h1>BI Concurrency 3TB: Snowflake vs Athena <span style="display:inline-block;background:#32963C;color:white;padding:4px 12px;border-radius:4px;font-size:0.7em;font-weight:600;margin-left:10px;vertical-align:middle;">Managed Iceberg</span></h1>
+    <p class="subtitle">Snowflake-managed Iceberg (Horizon catalog) — Apples-to-apples comparison at 16/32/64 concurrent users</p>
+
+    <div class="model-note">
+        <strong>Benchmark:</strong> TPC-DS 3TB BI Concurrency — 14 query types run repeatedly by 16/32/64 concurrent users over 20-minute runs.<br>
+        <strong>SF:</strong> Medium ×4 MCW (4 clusters), Gen2, prod1 — fixed cost of $14.40/20min (16 credits/hr × $2.70/credit).<br>
+        <strong>Athena:</strong> Serverless ($5/TB scanned) — cost scales with query volume.
+    </div>
+
+    <div class="tab-nav">
+        <button class="tab-btn active" onclick="showTab('overview', this)">Overview</button>
+        <button class="tab-btn" onclick="showTab('h2h', this)">Head-to-Head</button>
+        <button class="tab-btn" onclick="showTab('per-query', this)">Per-Query Detail</button>
+        <button class="tab-btn" onclick="showTab('charts', this)">Charts</button>
+        <button class="tab-btn" onclick="showTab('cost', this)">Cost Analysis</button>
+        <button class="tab-btn" onclick="showTab('steady-state', this)">Steady-State QPS</button>
+        <button class="tab-btn" onclick="showTab('reference', this)">Run Reference</button>
+    </div>
+
+    <div id="overview" class="tab-content active">
+        <h2>Executive Summary</h2>
+
+        <div class="summary-row">
+            <div class="card winner">
+                <div class="label">Throughput (32u)</div>
+                <div class="value">2.0×</div>
+                <div class="detail">SF 748 vs Athena 373 QPM</div>
+            </div>
+            <div class="card winner">
+                <div class="label">Price:Performance</div>
+                <div class="value">18×</div>
+                <div class="detail">SF advantage ($/1000 queries)</div>
+            </div>
+            <div class="card sf">
+                <div class="label">SF Cost (20min)</div>
+                <div class="value">$14.40</div>
+                <div class="detail">Fixed — M×4 MCW Gen2</div>
+            </div>
+            <div class="card comp">
+                <div class="label">Athena Cost (32u)</div>
+                <div class="value">$129.30</div>
+                <div class="detail">25,860 GB scanned</div>
+            </div>
+        </div>
+
+        <div class="insight-box winner">
+            <strong>Bottom Line:</strong> On the same Managed Iceberg tables, Snowflake M×4 Gen2 delivers
+            <strong>2.0× higher throughput</strong> than Athena at 32 concurrent users,
+            while costing <strong>$14.40 vs $129.30</strong>
+            for the same 20-minute run. Head-to-head, Snowflake wins <strong>5 of 14</strong> queries on P50 latency.
+        </div>
+
+        <h3>Concurrency Scaling</h3>
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th colspan="5">Snowflake M×4 Gen2</th>
+                    <th colspan="5" class="comp">Athena Serverless</th>
+                    <th>SF Edge</th>
+                </tr>
+                <tr>
+                    <th style="text-align:center;"></th>
+                    <th>Queries</th>
+                    <th>QPM</th>
+                    <th>P50 (s)</th>
+                    <th>P99 (s)</th>
+                    <th>Cost</th>
+                    <th class="comp">Queries</th>
+                    <th class="comp">QPM</th>
+                    <th class="comp">P50 (s)</th>
+                    <th class="comp">P99 (s)</th>
+                    <th class="comp">Cost</th>
+                    <th>Throughput</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td>15,089</td>
+                    <td class="winner-cell">754</td>
+                    <td>5.07</td>
+                    <td>10.44</td>
+                    <td style="color:var(--green);">$14.40</td>
+                    <td>4,365</td>
+                    <td>218</td>
+                    <td>11.65</td>
+                    <td>26.73</td>
+                    <td style="color:var(--comp-orange);">$80.81</td>
+                    <td style="text-align:center;font-weight:700;color:var(--green);">3.5×</td>
+                </tr>
+                <tr style="font-weight:700;background:#E8F4FC;">
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td>14,966</td>
+                    <td class="winner-cell">748</td>
+                    <td>10.52</td>
+                    <td>17.95</td>
+                    <td style="color:var(--green);">$14.40</td>
+                    <td>7,454</td>
+                    <td>373</td>
+                    <td>11.65</td>
+                    <td>36.82</td>
+                    <td style="color:var(--comp-orange);">$129.30</td>
+                    <td style="text-align:center;font-weight:700;color:var(--green);">2.0×</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td>15,132</td>
+                    <td class="winner-cell">757</td>
+                    <td>21.18</td>
+                    <td>31.35</td>
+                    <td style="color:var(--green);">$14.40</td>
+                    <td>10,129</td>
+                    <td>506</td>
+                    <td>11.66</td>
+                    <td style="color:var(--red);font-weight:bold;">132.13</td>
+                    <td style="color:var(--comp-orange);">$213.59</td>
+                    <td style="text-align:center;font-weight:700;color:var(--green);">1.5×</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <div class="insight-box warning">
+            <strong>⚠️ Athena P99 Alert at 64u:</strong> Athena's P99 latency explodes to
+            <strong>132.1s</strong> at 64 concurrent users
+            (vs 31.4s for Snowflake). A 132-second tail latency
+            is unacceptable for interactive BI dashboards.
+        </div>
+    </div>
+
+    <div id="h2h" class="tab-content">
+        <h2>Head-to-Head: Per-Query Comparison</h2>
+        <p class="subtitle">Each of the 14 BI queries compared — sorted by Snowflake advantage (P50 latency)</p>
+
+        <div class="sub-tab-nav">
+            <button class="sub-tab-btn" onclick="showSubTab('h2h', 'h2h-16u', this)">16 Users</button>
+            <button class="sub-tab-btn active" onclick="showSubTab('h2h', 'h2h-32u', this)">32 Users</button>
+            <button class="sub-tab-btn" onclick="showSubTab('h2h', 'h2h-64u', this)">64 Users</button>
+        </div>
+
+        <div id="h2h-16u" class="sub-tab-content">
+            <div class="summary-row">
+                <div class="card winner">
+                    <div class="label">SF Wins</div>
+                    <div class="value">14</div>
+                    <div class="detail">of 14 queries (&gt;5% faster)</div>
+                </div>
+                <div class="card comp">
+                    <div class="label">Athena Wins</div>
+                    <div class="value">0</div>
+                    <div class="detail">of 14 queries (&gt;5% faster)</div>
+                </div>
+                <div class="card">
+                    <div class="label">Close</div>
+                    <div class="value">0</div>
+                    <div class="detail">within 5%</div>
+                </div>
+                <div class="card sf">
+                    <div class="label">SF Geomean P50</div>
+                    <div class="value">4.9s</div>
+                    <div class="detail">vs Athena 9.9s</div>
+                </div>
+            </div>
+
+            <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="text-align:left;">Query</th>
+                        <th>SF P50 (s)</th>
+                        <th class="comp">Athena P50 (s)</th>
+                        <th>SF P99 (s)</th>
+                        <th class="comp">Athena P99 (s)</th>
+                        <th>SF Execs</th>
+                        <th class="comp">Athena Execs</th>
+                        <th>SF Advantage</th>
+                        <th>Winner</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                    <tr>
+                        <td><span class="query-name" data-desc="Sales by brand in specific category (November)">query03</span></td>
+                        <td class="winner-cell">4.60</td>
+                        <td class="">16.68</td>
+                        <td>7.43</td>
+                        <td>45.20</td>
+                        <td>994</td>
+                        <td>256</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+72%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Purchases from specific store locations">query68</span></td>
+                        <td class="winner-cell">4.82</td>
+                        <td class="">11.66</td>
+                        <td>8.01</td>
+                        <td>16.46</td>
+                        <td>994</td>
+                        <td>248</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+59%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Quarterly sales by manufacturer">query53</span></td>
+                        <td class="winner-cell">5.21</td>
+                        <td class="">11.68</td>
+                        <td>7.95</td>
+                        <td>16.73</td>
+                        <td>992</td>
+                        <td>246</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+55%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Monthly brand sales by manager">query55</span></td>
+                        <td class="winner-cell">3.08</td>
+                        <td class="">6.64</td>
+                        <td>5.71</td>
+                        <td>10.30</td>
+                        <td>988</td>
+                        <td>242</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+54%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Revenue-to-profit ratio via retail channel (Dec)">query19</span></td>
+                        <td class="winner-cell">5.55</td>
+                        <td class="">11.64</td>
+                        <td>9.40</td>
+                        <td>11.76</td>
+                        <td>998</td>
+                        <td>251</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+52%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Store sales for specific brands/demographics">query63</span></td>
+                        <td class="winner-cell">5.60</td>
+                        <td class="">11.68</td>
+                        <td>9.29</td>
+                        <td>16.73</td>
+                        <td>1,005</td>
+                        <td>256</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+52%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Monthly sales by item in given category">query42</span></td>
+                        <td class="winner-cell">3.23</td>
+                        <td class="">6.65</td>
+                        <td>5.64</td>
+                        <td>11.50</td>
+                        <td>994</td>
+                        <td>256</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+51%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Weekly store sales for specific month">query43</span></td>
+                        <td class="winner-cell">5.67</td>
+                        <td class="">11.65</td>
+                        <td>9.03</td>
+                        <td>26.73</td>
+                        <td>996</td>
+                        <td>253</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+51%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Brand/dept combos with highest monthly sales">query52</span></td>
+                        <td class="winner-cell">3.24</td>
+                        <td class="">6.65</td>
+                        <td>5.79</td>
+                        <td>11.72</td>
+                        <td>1,002</td>
+                        <td>261</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+51%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Catalog sales by category/class for specific months">query98</span></td>
+                        <td class="winner-cell">4.39</td>
+                        <td class="">8.28</td>
+                        <td>7.55</td>
+                        <td>13.57</td>
+                        <td>992</td>
+                        <td>249</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+47%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Customer purchase patterns in given counties">query73</span></td>
+                        <td class="winner-cell">3.80</td>
+                        <td class="">6.67</td>
+                        <td>6.66</td>
+                        <td>11.74</td>
+                        <td>999</td>
+                        <td>253</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+43%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Quarterly store sales by class for manufacturers">query89</span></td>
+                        <td class="winner-cell">7.72</td>
+                        <td class="">11.69</td>
+                        <td>10.73</td>
+                        <td>21.74</td>
+                        <td>1,006</td>
+                        <td>252</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+34%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Store sales by demographics with ROLLUP">query27</span></td>
+                        <td class="winner-cell">7.98</td>
+                        <td class="">11.69</td>
+                        <td>12.72</td>
+                        <td>21.59</td>
+                        <td>999</td>
+                        <td>250</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+32%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Average qty/price/profit by promotion status">query07</span></td>
+                        <td class="winner-cell">8.47</td>
+                        <td class="">11.68</td>
+                        <td>13.10</td>
+                        <td>16.74</td>
+                        <td>985</td>
+                        <td>244</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+28%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                </tbody>
+            </table>
+            </div>
+        </div>
+
+        <div id="h2h-32u" class="sub-tab-content active">
+            <div class="summary-row">
+                <div class="card winner">
+                    <div class="label">SF Wins</div>
+                    <div class="value">5</div>
+                    <div class="detail">of 14 queries (&gt;5% faster)</div>
+                </div>
+                <div class="card comp">
+                    <div class="label">Athena Wins</div>
+                    <div class="value">8</div>
+                    <div class="detail">of 14 queries (&gt;5% faster)</div>
+                </div>
+                <div class="card">
+                    <div class="label">Close</div>
+                    <div class="value">1</div>
+                    <div class="detail">within 5%</div>
+                </div>
+                <div class="card sf">
+                    <div class="label">SF Geomean P50</div>
+                    <div class="value">10.5s</div>
+                    <div class="detail">vs Athena 10.1s</div>
+                </div>
+            </div>
+
+            <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="text-align:left;">Query</th>
+                        <th>SF P50 (s)</th>
+                        <th class="comp">Athena P50 (s)</th>
+                        <th>SF P99 (s)</th>
+                        <th class="comp">Athena P99 (s)</th>
+                        <th>SF Execs</th>
+                        <th class="comp">Athena Execs</th>
+                        <th>SF Advantage</th>
+                        <th>Winner</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                    <tr>
+                        <td><span class="query-name" data-desc="Sales by brand in specific category (November)">query03</span></td>
+                        <td class="winner-cell">9.80</td>
+                        <td class="">11.65</td>
+                        <td>15.58</td>
+                        <td style="color:var(--red);font-weight:bold;">62.45</td>
+                        <td>993</td>
+                        <td>462</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+16%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Purchases from specific store locations">query68</span></td>
+                        <td class="winner-cell">10.31</td>
+                        <td class="">11.65</td>
+                        <td>17.89</td>
+                        <td>16.69</td>
+                        <td>991</td>
+                        <td>457</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+11%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Quarterly sales by manufacturer">query53</span></td>
+                        <td class="winner-cell">10.66</td>
+                        <td class="">11.68</td>
+                        <td>17.19</td>
+                        <td>26.79</td>
+                        <td>977</td>
+                        <td>455</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+9%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Revenue-to-profit ratio via retail channel (Dec)">query19</span></td>
+                        <td class="winner-cell">10.85</td>
+                        <td class="">11.64</td>
+                        <td>15.87</td>
+                        <td style="color:var(--red);font-weight:bold;">67.66</td>
+                        <td>971</td>
+                        <td>450</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+7%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Store sales for specific brands/demographics">query63</span></td>
+                        <td class="winner-cell">11.09</td>
+                        <td class="">11.68</td>
+                        <td>17.92</td>
+                        <td>29.68</td>
+                        <td>994</td>
+                        <td>462</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+5%</td>
+                        <td style="text-align:center;"><span style="background:var(--green);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">SF</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Weekly store sales for specific month">query43</span></td>
+                        <td class="winner-cell">11.20</td>
+                        <td class="">11.66</td>
+                        <td>18.29</td>
+                        <td>39.70</td>
+                        <td>990</td>
+                        <td>452</td>
+                        <td style="color:var(--green);font-weight:700;text-align:right;">+4%</td>
+                        <td style="text-align:center;"><span style="background:#999;color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;">~Tie</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Quarterly store sales by class for manufacturers">query89</span></td>
+                        <td class="">12.91</td>
+                        <td class="winner-cell">11.70</td>
+                        <td>19.19</td>
+                        <td>34.57</td>
+                        <td>996</td>
+                        <td>457</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-10%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Average qty/price/profit by promotion status">query07</span></td>
+                        <td class="">13.46</td>
+                        <td class="winner-cell">11.67</td>
+                        <td>20.49</td>
+                        <td>34.51</td>
+                        <td>992</td>
+                        <td>457</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-15%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Store sales by demographics with ROLLUP">query27</span></td>
+                        <td class="">13.66</td>
+                        <td class="winner-cell">11.68</td>
+                        <td>21.26</td>
+                        <td style="color:var(--red);font-weight:bold;">122.38</td>
+                        <td>992</td>
+                        <td>461</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-17%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Catalog sales by category/class for specific months">query98</span></td>
+                        <td class="">9.90</td>
+                        <td class="winner-cell">8.22</td>
+                        <td>13.26</td>
+                        <td>13.43</td>
+                        <td>982</td>
+                        <td>455</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-20%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Brand/dept combos with highest monthly sales">query52</span></td>
+                        <td class="">8.64</td>
+                        <td class="winner-cell">6.65</td>
+                        <td>13.01</td>
+                        <td>41.35</td>
+                        <td>987</td>
+                        <td>452</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-30%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Monthly brand sales by manager">query55</span></td>
+                        <td class="">8.69</td>
+                        <td class="winner-cell">6.64</td>
+                        <td>13.11</td>
+                        <td>11.69</td>
+                        <td>980</td>
+                        <td>460</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-31%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Monthly sales by item in given category">query42</span></td>
+                        <td class="">8.78</td>
+                        <td class="winner-cell">6.64</td>
+                        <td>13.06</td>
+                        <td>17.62</td>
+                        <td>991</td>
+                        <td>457</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-32%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Customer purchase patterns in given counties">query73</span></td>
+                        <td class="">9.34</td>
+                        <td class="winner-cell">6.66</td>
+                        <td>12.00</td>
+                        <td>16.58</td>
+                        <td>983</td>
+                        <td>453</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-40%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                </tbody>
+            </table>
+            </div>
+        </div>
+
+        <div id="h2h-64u" class="sub-tab-content">
+            <div class="summary-row">
+                <div class="card winner">
+                    <div class="label">SF Wins</div>
+                    <div class="value">0</div>
+                    <div class="detail">of 14 queries (&gt;5% faster)</div>
+                </div>
+                <div class="card comp">
+                    <div class="label">Athena Wins</div>
+                    <div class="value">14</div>
+                    <div class="detail">of 14 queries (&gt;5% faster)</div>
+                </div>
+                <div class="card">
+                    <div class="label">Close</div>
+                    <div class="value">0</div>
+                    <div class="detail">within 5%</div>
+                </div>
+                <div class="card sf">
+                    <div class="label">SF Geomean P50</div>
+                    <div class="value">21.1s</div>
+                    <div class="detail">vs Athena 12.1s</div>
+                </div>
+            </div>
+
+            <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="text-align:left;">Query</th>
+                        <th>SF P50 (s)</th>
+                        <th class="comp">Athena P50 (s)</th>
+                        <th>SF P99 (s)</th>
+                        <th class="comp">Athena P99 (s)</th>
+                        <th>SF Execs</th>
+                        <th class="comp">Athena Execs</th>
+                        <th>SF Advantage</th>
+                        <th>Winner</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                    <tr>
+                        <td><span class="query-name" data-desc="Sales by brand in specific category (November)">query03</span></td>
+                        <td class="">20.36</td>
+                        <td class="winner-cell">16.66</td>
+                        <td>29.74</td>
+                        <td style="color:var(--red);font-weight:bold;">137.16</td>
+                        <td>998</td>
+                        <td>647</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-22%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Purchases from specific store locations">query68</span></td>
+                        <td class="">20.94</td>
+                        <td class="winner-cell">11.66</td>
+                        <td>32.54</td>
+                        <td style="color:var(--red);font-weight:bold;">156.49</td>
+                        <td>1,014</td>
+                        <td>637</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-80%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Quarterly sales by manufacturer">query53</span></td>
+                        <td class="">21.16</td>
+                        <td class="winner-cell">11.67</td>
+                        <td>29.23</td>
+                        <td style="color:var(--red);font-weight:bold;">71.91</td>
+                        <td>1,001</td>
+                        <td>640</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-81%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Revenue-to-profit ratio via retail channel (Dec)">query19</span></td>
+                        <td class="">21.43</td>
+                        <td class="winner-cell">11.66</td>
+                        <td>30.35</td>
+                        <td style="color:var(--red);font-weight:bold;">110.10</td>
+                        <td>998</td>
+                        <td>640</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-84%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Store sales for specific brands/demographics">query63</span></td>
+                        <td class="">21.52</td>
+                        <td class="winner-cell">11.68</td>
+                        <td>30.22</td>
+                        <td style="color:var(--red);font-weight:bold;">118.92</td>
+                        <td>1,004</td>
+                        <td>634</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-84%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Weekly store sales for specific month">query43</span></td>
+                        <td class="">21.75</td>
+                        <td class="winner-cell">11.65</td>
+                        <td>32.30</td>
+                        <td style="color:var(--red);font-weight:bold;">142.18</td>
+                        <td>1,010</td>
+                        <td>642</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-87%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Quarterly store sales by class for manufacturers">query89</span></td>
+                        <td class="">23.40</td>
+                        <td class="winner-cell">11.67</td>
+                        <td>29.55</td>
+                        <td style="color:var(--red);font-weight:bold;">134.85</td>
+                        <td>1,001</td>
+                        <td>643</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-100%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Store sales by demographics with ROLLUP">query27</span></td>
+                        <td class="">23.85</td>
+                        <td class="winner-cell">11.67</td>
+                        <td>37.30</td>
+                        <td style="color:var(--red);font-weight:bold;">132.13</td>
+                        <td>995</td>
+                        <td>634</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-104%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Average qty/price/profit by promotion status">query07</span></td>
+                        <td class="">24.29</td>
+                        <td class="winner-cell">11.67</td>
+                        <td>35.09</td>
+                        <td style="color:var(--red);font-weight:bold;">87.36</td>
+                        <td>1,000</td>
+                        <td>645</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-108%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Catalog sales by category/class for specific months">query98</span></td>
+                        <td class="">20.57</td>
+                        <td class="winner-cell">8.30</td>
+                        <td>30.08</td>
+                        <td style="color:var(--red);font-weight:bold;">131.54</td>
+                        <td>997</td>
+                        <td>651</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-148%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Monthly brand sales by manager">query55</span></td>
+                        <td class="">19.08</td>
+                        <td class="winner-cell">6.64</td>
+                        <td>28.06</td>
+                        <td style="color:var(--red);font-weight:bold;">88.88</td>
+                        <td>996</td>
+                        <td>620</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-187%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Brand/dept combos with highest monthly sales">query52</span></td>
+                        <td class="">19.19</td>
+                        <td class="winner-cell">6.64</td>
+                        <td>24.92</td>
+                        <td style="color:var(--red);font-weight:bold;">82.68</td>
+                        <td>994</td>
+                        <td>651</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-189%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Monthly sales by item in given category">query42</span></td>
+                        <td class="">19.23</td>
+                        <td class="winner-cell">6.65</td>
+                        <td>26.92</td>
+                        <td style="color:var(--red);font-weight:bold;">90.12</td>
+                        <td>995</td>
+                        <td>633</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-189%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="query-name" data-desc="Customer purchase patterns in given counties">query73</span></td>
+                        <td class="">19.84</td>
+                        <td class="winner-cell">6.66</td>
+                        <td>26.98</td>
+                        <td style="color:var(--red);font-weight:bold;">114.90</td>
+                        <td>996</td>
+                        <td>643</td>
+                        <td style="color:var(--red);font-weight:700;text-align:right;">-198%</td>
+                        <td style="text-align:center;"><span style="background:var(--comp-orange);color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;font-weight:600;">Athena</span></td>
+                    </tr>
+                </tbody>
+            </table>
+            </div>
+        </div>
+
+        <div class="insight-box">
+            <strong>How to read:</strong> "SF Advantage" shows how much faster Snowflake's P50 is vs Athena's P50.
+            Positive = SF faster. Sorted by biggest SF advantage first.
+            Hover over query names to see descriptions.
+        </div>
+    </div>
+
+    <div id="per-query" class="tab-content">
+        <h2>Per-Query Latency Across Concurrency Levels</h2>
+        <p class="subtitle">P50 and P99 latency for each query at 16/32/64 users — both platforms side by side</p>
+
+        <h3><span class="query-name" data-desc="Sales by brand in specific category (November)">query03</span> — <span style="font-weight:normal;color:var(--sf-gray);font-size:0.85em;">Sales by brand in specific category (November)</span></h3>
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th>SF P50 (s)</th>
+                    <th>SF P99 (s)</th>
+                    <th>SF Avg (s)</th>
+                    <th>SF Execs</th>
+                    <th class="comp">Ath P50 (s)</th>
+                    <th class="comp">Ath P99 (s)</th>
+                    <th class="comp">Ath Avg (s)</th>
+                    <th class="comp">Ath Execs</th>
+                    <th>P50 Δ</th>
+                    <th>P99 Δ</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td>4.60</td>
+                    <td>7.43</td>
+                    <td>4.65</td>
+                    <td>994</td>
+                    <td>16.68</td>
+                    <td>45.20</td>
+                    <td>17.63</td>
+                    <td>256</td>
+                    <td style="color:var(--green);font-weight:600;">+72%</td>
+                    <td style="color:var(--green);font-weight:600;">+84%</td>
+                </tr>
+                <tr style="font-weight:600;background:#E8F4FC;">
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td>9.80</td>
+                    <td>15.58</td>
+                    <td>9.87</td>
+                    <td>993</td>
+                    <td>11.65</td>
+                    <td style="color:var(--red);font-weight:bold;">62.45</td>
+                    <td>13.95</td>
+                    <td>462</td>
+                    <td style="color:var(--green);font-weight:600;">+16%</td>
+                    <td style="color:var(--green);font-weight:600;">+75%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td>20.36</td>
+                    <td>29.74</td>
+                    <td>20.29</td>
+                    <td>998</td>
+                    <td>16.66</td>
+                    <td style="color:var(--red);font-weight:bold;">137.16</td>
+                    <td>21.93</td>
+                    <td>647</td>
+                    <td style="color:var(--red);font-weight:600;">-22%</td>
+                    <td style="color:var(--green);font-weight:600;">+78%</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <h3><span class="query-name" data-desc="Average qty/price/profit by promotion status">query07</span> — <span style="font-weight:normal;color:var(--sf-gray);font-size:0.85em;">Average qty/price/profit by promotion status</span></h3>
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th>SF P50 (s)</th>
+                    <th>SF P99 (s)</th>
+                    <th>SF Avg (s)</th>
+                    <th>SF Execs</th>
+                    <th class="comp">Ath P50 (s)</th>
+                    <th class="comp">Ath P99 (s)</th>
+                    <th class="comp">Ath Avg (s)</th>
+                    <th class="comp">Ath Execs</th>
+                    <th>P50 Δ</th>
+                    <th>P99 Δ</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td>8.47</td>
+                    <td>13.10</td>
+                    <td>8.50</td>
+                    <td>985</td>
+                    <td>11.68</td>
+                    <td>16.74</td>
+                    <td>12.53</td>
+                    <td>244</td>
+                    <td style="color:var(--green);font-weight:600;">+28%</td>
+                    <td style="color:var(--green);font-weight:600;">+22%</td>
+                </tr>
+                <tr style="font-weight:600;background:#E8F4FC;">
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td>13.46</td>
+                    <td>20.49</td>
+                    <td>13.62</td>
+                    <td>992</td>
+                    <td>11.67</td>
+                    <td>34.51</td>
+                    <td>13.78</td>
+                    <td>457</td>
+                    <td style="color:var(--red);font-weight:600;">-15%</td>
+                    <td style="color:var(--green);font-weight:600;">+41%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td>24.29</td>
+                    <td>35.09</td>
+                    <td>24.72</td>
+                    <td>1,000</td>
+                    <td>11.67</td>
+                    <td style="color:var(--red);font-weight:bold;">87.36</td>
+                    <td>16.05</td>
+                    <td>645</td>
+                    <td style="color:var(--red);font-weight:600;">-108%</td>
+                    <td style="color:var(--green);font-weight:600;">+60%</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <h3><span class="query-name" data-desc="Revenue-to-profit ratio via retail channel (Dec)">query19</span> — <span style="font-weight:normal;color:var(--sf-gray);font-size:0.85em;">Revenue-to-profit ratio via retail channel (Dec)</span></h3>
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th>SF P50 (s)</th>
+                    <th>SF P99 (s)</th>
+                    <th>SF Avg (s)</th>
+                    <th>SF Execs</th>
+                    <th class="comp">Ath P50 (s)</th>
+                    <th class="comp">Ath P99 (s)</th>
+                    <th class="comp">Ath Avg (s)</th>
+                    <th class="comp">Ath Execs</th>
+                    <th>P50 Δ</th>
+                    <th>P99 Δ</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td>5.55</td>
+                    <td>9.40</td>
+                    <td>5.61</td>
+                    <td>998</td>
+                    <td>11.64</td>
+                    <td>11.76</td>
+                    <td>9.45</td>
+                    <td>251</td>
+                    <td style="color:var(--green);font-weight:600;">+52%</td>
+                    <td style="color:var(--green);font-weight:600;">+20%</td>
+                </tr>
+                <tr style="font-weight:600;background:#E8F4FC;">
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td>10.85</td>
+                    <td>15.87</td>
+                    <td>10.87</td>
+                    <td>971</td>
+                    <td>11.64</td>
+                    <td style="color:var(--red);font-weight:bold;">67.66</td>
+                    <td>11.27</td>
+                    <td>450</td>
+                    <td style="color:var(--green);font-weight:600;">+7%</td>
+                    <td style="color:var(--green);font-weight:600;">+77%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td>21.43</td>
+                    <td>30.35</td>
+                    <td>21.86</td>
+                    <td>998</td>
+                    <td>11.66</td>
+                    <td style="color:var(--red);font-weight:bold;">110.10</td>
+                    <td>15.42</td>
+                    <td>640</td>
+                    <td style="color:var(--red);font-weight:600;">-84%</td>
+                    <td style="color:var(--green);font-weight:600;">+72%</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <h3><span class="query-name" data-desc="Store sales by demographics with ROLLUP">query27</span> — <span style="font-weight:normal;color:var(--sf-gray);font-size:0.85em;">Store sales by demographics with ROLLUP</span></h3>
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th>SF P50 (s)</th>
+                    <th>SF P99 (s)</th>
+                    <th>SF Avg (s)</th>
+                    <th>SF Execs</th>
+                    <th class="comp">Ath P50 (s)</th>
+                    <th class="comp">Ath P99 (s)</th>
+                    <th class="comp">Ath Avg (s)</th>
+                    <th class="comp">Ath Execs</th>
+                    <th>P50 Δ</th>
+                    <th>P99 Δ</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td>7.98</td>
+                    <td>12.72</td>
+                    <td>8.09</td>
+                    <td>999</td>
+                    <td>11.69</td>
+                    <td>21.59</td>
+                    <td>13.04</td>
+                    <td>250</td>
+                    <td style="color:var(--green);font-weight:600;">+32%</td>
+                    <td style="color:var(--green);font-weight:600;">+41%</td>
+                </tr>
+                <tr style="font-weight:600;background:#E8F4FC;">
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td>13.66</td>
+                    <td>21.26</td>
+                    <td>13.87</td>
+                    <td>992</td>
+                    <td>11.68</td>
+                    <td style="color:var(--red);font-weight:bold;">122.38</td>
+                    <td>15.14</td>
+                    <td>461</td>
+                    <td style="color:var(--red);font-weight:600;">-17%</td>
+                    <td style="color:var(--green);font-weight:600;">+83%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td>23.85</td>
+                    <td>37.30</td>
+                    <td>24.43</td>
+                    <td>995</td>
+                    <td>11.67</td>
+                    <td style="color:var(--red);font-weight:bold;">132.13</td>
+                    <td>19.56</td>
+                    <td>634</td>
+                    <td style="color:var(--red);font-weight:600;">-104%</td>
+                    <td style="color:var(--green);font-weight:600;">+72%</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <h3><span class="query-name" data-desc="Monthly sales by item in given category">query42</span> — <span style="font-weight:normal;color:var(--sf-gray);font-size:0.85em;">Monthly sales by item in given category</span></h3>
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th>SF P50 (s)</th>
+                    <th>SF P99 (s)</th>
+                    <th>SF Avg (s)</th>
+                    <th>SF Execs</th>
+                    <th class="comp">Ath P50 (s)</th>
+                    <th class="comp">Ath P99 (s)</th>
+                    <th class="comp">Ath Avg (s)</th>
+                    <th class="comp">Ath Execs</th>
+                    <th>P50 Δ</th>
+                    <th>P99 Δ</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td>3.23</td>
+                    <td>5.64</td>
+                    <td>3.28</td>
+                    <td>994</td>
+                    <td>6.65</td>
+                    <td>11.50</td>
+                    <td>6.76</td>
+                    <td>256</td>
+                    <td style="color:var(--green);font-weight:600;">+51%</td>
+                    <td style="color:var(--green);font-weight:600;">+51%</td>
+                </tr>
+                <tr style="font-weight:600;background:#E8F4FC;">
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td>8.78</td>
+                    <td>13.06</td>
+                    <td>8.87</td>
+                    <td>991</td>
+                    <td>6.64</td>
+                    <td>17.62</td>
+                    <td>7.75</td>
+                    <td>457</td>
+                    <td style="color:var(--red);font-weight:600;">-32%</td>
+                    <td style="color:var(--green);font-weight:600;">+26%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td>19.23</td>
+                    <td>26.92</td>
+                    <td>19.08</td>
+                    <td>995</td>
+                    <td>6.65</td>
+                    <td style="color:var(--red);font-weight:bold;">90.12</td>
+                    <td>12.57</td>
+                    <td>633</td>
+                    <td style="color:var(--red);font-weight:600;">-189%</td>
+                    <td style="color:var(--green);font-weight:600;">+70%</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <h3><span class="query-name" data-desc="Weekly store sales for specific month">query43</span> — <span style="font-weight:normal;color:var(--sf-gray);font-size:0.85em;">Weekly store sales for specific month</span></h3>
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th>SF P50 (s)</th>
+                    <th>SF P99 (s)</th>
+                    <th>SF Avg (s)</th>
+                    <th>SF Execs</th>
+                    <th class="comp">Ath P50 (s)</th>
+                    <th class="comp">Ath P99 (s)</th>
+                    <th class="comp">Ath Avg (s)</th>
+                    <th class="comp">Ath Execs</th>
+                    <th>P50 Δ</th>
+                    <th>P99 Δ</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td>5.67</td>
+                    <td>9.03</td>
+                    <td>5.85</td>
+                    <td>996</td>
+                    <td>11.65</td>
+                    <td>26.73</td>
+                    <td>10.71</td>
+                    <td>253</td>
+                    <td style="color:var(--green);font-weight:600;">+51%</td>
+                    <td style="color:var(--green);font-weight:600;">+66%</td>
+                </tr>
+                <tr style="font-weight:600;background:#E8F4FC;">
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td>11.20</td>
+                    <td>18.29</td>
+                    <td>11.36</td>
+                    <td>990</td>
+                    <td>11.66</td>
+                    <td>39.70</td>
+                    <td>12.84</td>
+                    <td>452</td>
+                    <td style="color:var(--green);font-weight:600;">+4%</td>
+                    <td style="color:var(--green);font-weight:600;">+54%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td>21.75</td>
+                    <td>32.30</td>
+                    <td>21.96</td>
+                    <td>1,010</td>
+                    <td>11.65</td>
+                    <td style="color:var(--red);font-weight:bold;">142.18</td>
+                    <td>17.31</td>
+                    <td>642</td>
+                    <td style="color:var(--red);font-weight:600;">-87%</td>
+                    <td style="color:var(--green);font-weight:600;">+77%</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <h3><span class="query-name" data-desc="Brand/dept combos with highest monthly sales">query52</span> — <span style="font-weight:normal;color:var(--sf-gray);font-size:0.85em;">Brand/dept combos with highest monthly sales</span></h3>
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th>SF P50 (s)</th>
+                    <th>SF P99 (s)</th>
+                    <th>SF Avg (s)</th>
+                    <th>SF Execs</th>
+                    <th class="comp">Ath P50 (s)</th>
+                    <th class="comp">Ath P99 (s)</th>
+                    <th class="comp">Ath Avg (s)</th>
+                    <th class="comp">Ath Execs</th>
+                    <th>P50 Δ</th>
+                    <th>P99 Δ</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td>3.24</td>
+                    <td>5.79</td>
+                    <td>3.30</td>
+                    <td>1,002</td>
+                    <td>6.65</td>
+                    <td>11.72</td>
+                    <td>6.92</td>
+                    <td>261</td>
+                    <td style="color:var(--green);font-weight:600;">+51%</td>
+                    <td style="color:var(--green);font-weight:600;">+51%</td>
+                </tr>
+                <tr style="font-weight:600;background:#E8F4FC;">
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td>8.64</td>
+                    <td>13.01</td>
+                    <td>8.57</td>
+                    <td>987</td>
+                    <td>6.65</td>
+                    <td>41.35</td>
+                    <td>8.00</td>
+                    <td>452</td>
+                    <td style="color:var(--red);font-weight:600;">-30%</td>
+                    <td style="color:var(--green);font-weight:600;">+69%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td>19.19</td>
+                    <td>24.92</td>
+                    <td>19.31</td>
+                    <td>994</td>
+                    <td>6.64</td>
+                    <td style="color:var(--red);font-weight:bold;">82.68</td>
+                    <td>11.93</td>
+                    <td>651</td>
+                    <td style="color:var(--red);font-weight:600;">-189%</td>
+                    <td style="color:var(--green);font-weight:600;">+70%</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <h3><span class="query-name" data-desc="Quarterly sales by manufacturer">query53</span> — <span style="font-weight:normal;color:var(--sf-gray);font-size:0.85em;">Quarterly sales by manufacturer</span></h3>
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th>SF P50 (s)</th>
+                    <th>SF P99 (s)</th>
+                    <th>SF Avg (s)</th>
+                    <th>SF Execs</th>
+                    <th class="comp">Ath P50 (s)</th>
+                    <th class="comp">Ath P99 (s)</th>
+                    <th class="comp">Ath Avg (s)</th>
+                    <th class="comp">Ath Execs</th>
+                    <th>P50 Δ</th>
+                    <th>P99 Δ</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td>5.21</td>
+                    <td>7.95</td>
+                    <td>5.23</td>
+                    <td>992</td>
+                    <td>11.68</td>
+                    <td>16.73</td>
+                    <td>11.83</td>
+                    <td>246</td>
+                    <td style="color:var(--green);font-weight:600;">+55%</td>
+                    <td style="color:var(--green);font-weight:600;">+52%</td>
+                </tr>
+                <tr style="font-weight:600;background:#E8F4FC;">
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td>10.66</td>
+                    <td>17.19</td>
+                    <td>10.84</td>
+                    <td>977</td>
+                    <td>11.68</td>
+                    <td>26.79</td>
+                    <td>13.14</td>
+                    <td>455</td>
+                    <td style="color:var(--green);font-weight:600;">+9%</td>
+                    <td style="color:var(--green);font-weight:600;">+36%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td>21.16</td>
+                    <td>29.23</td>
+                    <td>21.31</td>
+                    <td>1,001</td>
+                    <td>11.67</td>
+                    <td style="color:var(--red);font-weight:bold;">71.91</td>
+                    <td>14.41</td>
+                    <td>640</td>
+                    <td style="color:var(--red);font-weight:600;">-81%</td>
+                    <td style="color:var(--green);font-weight:600;">+59%</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <h3><span class="query-name" data-desc="Monthly brand sales by manager">query55</span> — <span style="font-weight:normal;color:var(--sf-gray);font-size:0.85em;">Monthly brand sales by manager</span></h3>
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th>SF P50 (s)</th>
+                    <th>SF P99 (s)</th>
+                    <th>SF Avg (s)</th>
+                    <th>SF Execs</th>
+                    <th class="comp">Ath P50 (s)</th>
+                    <th class="comp">Ath P99 (s)</th>
+                    <th class="comp">Ath Avg (s)</th>
+                    <th class="comp">Ath Execs</th>
+                    <th>P50 Δ</th>
+                    <th>P99 Δ</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td>3.08</td>
+                    <td>5.71</td>
+                    <td>3.18</td>
+                    <td>988</td>
+                    <td>6.64</td>
+                    <td>10.30</td>
+                    <td>6.65</td>
+                    <td>242</td>
+                    <td style="color:var(--green);font-weight:600;">+54%</td>
+                    <td style="color:var(--green);font-weight:600;">+45%</td>
+                </tr>
+                <tr style="font-weight:600;background:#E8F4FC;">
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td>8.69</td>
+                    <td>13.11</td>
+                    <td>8.69</td>
+                    <td>980</td>
+                    <td>6.64</td>
+                    <td>11.69</td>
+                    <td>7.32</td>
+                    <td>460</td>
+                    <td style="color:var(--red);font-weight:600;">-31%</td>
+                    <td style="color:var(--red);font-weight:600;">-12%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td>19.08</td>
+                    <td>28.06</td>
+                    <td>18.97</td>
+                    <td>996</td>
+                    <td>6.64</td>
+                    <td style="color:var(--red);font-weight:bold;">88.88</td>
+                    <td>12.04</td>
+                    <td>620</td>
+                    <td style="color:var(--red);font-weight:600;">-187%</td>
+                    <td style="color:var(--green);font-weight:600;">+68%</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <h3><span class="query-name" data-desc="Store sales for specific brands/demographics">query63</span> — <span style="font-weight:normal;color:var(--sf-gray);font-size:0.85em;">Store sales for specific brands/demographics</span></h3>
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th>SF P50 (s)</th>
+                    <th>SF P99 (s)</th>
+                    <th>SF Avg (s)</th>
+                    <th>SF Execs</th>
+                    <th class="comp">Ath P50 (s)</th>
+                    <th class="comp">Ath P99 (s)</th>
+                    <th class="comp">Ath Avg (s)</th>
+                    <th class="comp">Ath Execs</th>
+                    <th>P50 Δ</th>
+                    <th>P99 Δ</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td>5.60</td>
+                    <td>9.29</td>
+                    <td>5.74</td>
+                    <td>1,005</td>
+                    <td>11.68</td>
+                    <td>16.73</td>
+                    <td>11.87</td>
+                    <td>256</td>
+                    <td style="color:var(--green);font-weight:600;">+52%</td>
+                    <td style="color:var(--green);font-weight:600;">+44%</td>
+                </tr>
+                <tr style="font-weight:600;background:#E8F4FC;">
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td>11.09</td>
+                    <td>17.92</td>
+                    <td>11.33</td>
+                    <td>994</td>
+                    <td>11.68</td>
+                    <td>29.68</td>
+                    <td>13.04</td>
+                    <td>462</td>
+                    <td style="color:var(--green);font-weight:600;">+5%</td>
+                    <td style="color:var(--green);font-weight:600;">+40%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td>21.52</td>
+                    <td>30.22</td>
+                    <td>21.71</td>
+                    <td>1,004</td>
+                    <td>11.68</td>
+                    <td style="color:var(--red);font-weight:bold;">118.92</td>
+                    <td>18.62</td>
+                    <td>634</td>
+                    <td style="color:var(--red);font-weight:600;">-84%</td>
+                    <td style="color:var(--green);font-weight:600;">+75%</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <h3><span class="query-name" data-desc="Purchases from specific store locations">query68</span> — <span style="font-weight:normal;color:var(--sf-gray);font-size:0.85em;">Purchases from specific store locations</span></h3>
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th>SF P50 (s)</th>
+                    <th>SF P99 (s)</th>
+                    <th>SF Avg (s)</th>
+                    <th>SF Execs</th>
+                    <th class="comp">Ath P50 (s)</th>
+                    <th class="comp">Ath P99 (s)</th>
+                    <th class="comp">Ath Avg (s)</th>
+                    <th class="comp">Ath Execs</th>
+                    <th>P50 Δ</th>
+                    <th>P99 Δ</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td>4.82</td>
+                    <td>8.01</td>
+                    <td>4.98</td>
+                    <td>994</td>
+                    <td>11.66</td>
+                    <td>16.46</td>
+                    <td>9.97</td>
+                    <td>248</td>
+                    <td style="color:var(--green);font-weight:600;">+59%</td>
+                    <td style="color:var(--green);font-weight:600;">+51%</td>
+                </tr>
+                <tr style="font-weight:600;background:#E8F4FC;">
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td>10.31</td>
+                    <td>17.89</td>
+                    <td>10.50</td>
+                    <td>991</td>
+                    <td>11.65</td>
+                    <td>16.69</td>
+                    <td>10.06</td>
+                    <td>457</td>
+                    <td style="color:var(--green);font-weight:600;">+11%</td>
+                    <td style="color:var(--red);font-weight:600;">-7%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td>20.94</td>
+                    <td>32.54</td>
+                    <td>21.36</td>
+                    <td>1,014</td>
+                    <td>11.66</td>
+                    <td style="color:var(--red);font-weight:bold;">156.49</td>
+                    <td>16.70</td>
+                    <td>637</td>
+                    <td style="color:var(--red);font-weight:600;">-80%</td>
+                    <td style="color:var(--green);font-weight:600;">+79%</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <h3><span class="query-name" data-desc="Customer purchase patterns in given counties">query73</span> — <span style="font-weight:normal;color:var(--sf-gray);font-size:0.85em;">Customer purchase patterns in given counties</span></h3>
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th>SF P50 (s)</th>
+                    <th>SF P99 (s)</th>
+                    <th>SF Avg (s)</th>
+                    <th>SF Execs</th>
+                    <th class="comp">Ath P50 (s)</th>
+                    <th class="comp">Ath P99 (s)</th>
+                    <th class="comp">Ath Avg (s)</th>
+                    <th class="comp">Ath Execs</th>
+                    <th>P50 Δ</th>
+                    <th>P99 Δ</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td>3.80</td>
+                    <td>6.66</td>
+                    <td>3.92</td>
+                    <td>999</td>
+                    <td>6.67</td>
+                    <td>11.74</td>
+                    <td>7.69</td>
+                    <td>253</td>
+                    <td style="color:var(--green);font-weight:600;">+43%</td>
+                    <td style="color:var(--green);font-weight:600;">+43%</td>
+                </tr>
+                <tr style="font-weight:600;background:#E8F4FC;">
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td>9.34</td>
+                    <td>12.00</td>
+                    <td>9.31</td>
+                    <td>983</td>
+                    <td>6.66</td>
+                    <td>16.58</td>
+                    <td>8.86</td>
+                    <td>453</td>
+                    <td style="color:var(--red);font-weight:600;">-40%</td>
+                    <td style="color:var(--green);font-weight:600;">+28%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td>19.84</td>
+                    <td>26.98</td>
+                    <td>20.06</td>
+                    <td>996</td>
+                    <td>6.66</td>
+                    <td style="color:var(--red);font-weight:bold;">114.90</td>
+                    <td>13.49</td>
+                    <td>643</td>
+                    <td style="color:var(--red);font-weight:600;">-198%</td>
+                    <td style="color:var(--green);font-weight:600;">+77%</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <h3><span class="query-name" data-desc="Quarterly store sales by class for manufacturers">query89</span> — <span style="font-weight:normal;color:var(--sf-gray);font-size:0.85em;">Quarterly store sales by class for manufacturers</span></h3>
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th>SF P50 (s)</th>
+                    <th>SF P99 (s)</th>
+                    <th>SF Avg (s)</th>
+                    <th>SF Execs</th>
+                    <th class="comp">Ath P50 (s)</th>
+                    <th class="comp">Ath P99 (s)</th>
+                    <th class="comp">Ath Avg (s)</th>
+                    <th class="comp">Ath Execs</th>
+                    <th>P50 Δ</th>
+                    <th>P99 Δ</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td>7.72</td>
+                    <td>10.73</td>
+                    <td>7.72</td>
+                    <td>1,006</td>
+                    <td>11.69</td>
+                    <td>21.74</td>
+                    <td>12.92</td>
+                    <td>252</td>
+                    <td style="color:var(--green);font-weight:600;">+34%</td>
+                    <td style="color:var(--green);font-weight:600;">+51%</td>
+                </tr>
+                <tr style="font-weight:600;background:#E8F4FC;">
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td>12.91</td>
+                    <td>19.19</td>
+                    <td>13.08</td>
+                    <td>996</td>
+                    <td>11.70</td>
+                    <td>34.57</td>
+                    <td>14.26</td>
+                    <td>457</td>
+                    <td style="color:var(--red);font-weight:600;">-10%</td>
+                    <td style="color:var(--green);font-weight:600;">+44%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td>23.40</td>
+                    <td>29.55</td>
+                    <td>23.58</td>
+                    <td>1,001</td>
+                    <td>11.67</td>
+                    <td style="color:var(--red);font-weight:bold;">134.85</td>
+                    <td>18.91</td>
+                    <td>643</td>
+                    <td style="color:var(--red);font-weight:600;">-100%</td>
+                    <td style="color:var(--green);font-weight:600;">+78%</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <h3><span class="query-name" data-desc="Catalog sales by category/class for specific months">query98</span> — <span style="font-weight:normal;color:var(--sf-gray);font-size:0.85em;">Catalog sales by category/class for specific months</span></h3>
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th>SF P50 (s)</th>
+                    <th>SF P99 (s)</th>
+                    <th>SF Avg (s)</th>
+                    <th>SF Execs</th>
+                    <th class="comp">Ath P50 (s)</th>
+                    <th class="comp">Ath P99 (s)</th>
+                    <th class="comp">Ath Avg (s)</th>
+                    <th class="comp">Ath Execs</th>
+                    <th>P50 Δ</th>
+                    <th>P99 Δ</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td>4.39</td>
+                    <td>7.55</td>
+                    <td>4.44</td>
+                    <td>992</td>
+                    <td>8.28</td>
+                    <td>13.57</td>
+                    <td>9.84</td>
+                    <td>249</td>
+                    <td style="color:var(--green);font-weight:600;">+47%</td>
+                    <td style="color:var(--green);font-weight:600;">+44%</td>
+                </tr>
+                <tr style="font-weight:600;background:#E8F4FC;">
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td>9.90</td>
+                    <td>13.26</td>
+                    <td>9.93</td>
+                    <td>982</td>
+                    <td>8.22</td>
+                    <td>13.43</td>
+                    <td>9.52</td>
+                    <td>455</td>
+                    <td style="color:var(--red);font-weight:600;">-20%</td>
+                    <td style="color:var(--green);font-weight:600;">+1%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td>20.57</td>
+                    <td>30.08</td>
+                    <td>20.75</td>
+                    <td>997</td>
+                    <td>8.30</td>
+                    <td style="color:var(--red);font-weight:bold;">131.54</td>
+                    <td>16.24</td>
+                    <td>651</td>
+                    <td style="color:var(--red);font-weight:600;">-148%</td>
+                    <td style="color:var(--green);font-weight:600;">+77%</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+    </div>
+
+    <div id="charts" class="tab-content">
+        <h2>Visual Comparisons</h2>
+
+        <div class="chart-grid">
+            <div class="chart-container">
+                <h3 style="text-align:center;margin-top:0;">Throughput Scaling (QPM)</h3>
+                <canvas id="chart-qpm" height="280"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3 style="text-align:center;margin-top:0;">P99 Latency Scaling (seconds)</h3>
+                <canvas id="chart-p99-scaling" height="280"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h3 style="text-align:center;margin-top:0;">Per-Query P50 Latency at 32 Users (seconds) — Lower is Better</h3>
+            <canvas id="chart-h2h-p50" height="350"></canvas>
+        </div>
+
+        <div class="chart-container">
+            <h3 style="text-align:center;margin-top:0;">Per-Query P99 Latency at 32 Users (seconds) — Lower is Better</h3>
+            <canvas id="chart-h2h-p99" height="350"></canvas>
+        </div>
+    </div>
+
+    <div id="cost" class="tab-content">
+        <h2>Cost Analysis</h2>
+
+        <div class="model-note">
+            <strong>⚠️ Different pricing models:</strong>
+            Snowflake charges a fixed rate per compute-hour (M×4 MCW = 16 credits/hr × $2.70/credit = $43.20/hr).
+            Athena charges $5/TB scanned — cost scales with query volume.
+            <strong>SF cost is the same regardless of concurrency level.</strong> Athena cost grows with more users.
+        </div>
+
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th>SF QPM</th>
+                    <th>SF Cost</th>
+                    <th>SF $/1000q</th>
+                    <th class="comp">Ath QPM</th>
+                    <th class="comp">Ath GB Scanned</th>
+                    <th class="comp">Ath Cost</th>
+                    <th class="comp">Ath $/1000q</th>
+                    <th>Price:Perf</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td>754</td>
+                    <td style="color:var(--green);">$14.40</td>
+                    <td class="winner-cell">$0.95</td>
+                    <td>218</td>
+                    <td>16,161</td>
+                    <td style="color:var(--comp-orange);">$80.81</td>
+                    <td>$18.51</td>
+                    <td style="text-align:center;font-weight:700;color:var(--green);">19.4×</td>
+                </tr>
+                <tr style="font-weight:700;background:#E8F4FC;">
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td>748</td>
+                    <td style="color:var(--green);">$14.40</td>
+                    <td class="winner-cell">$0.96</td>
+                    <td>373</td>
+                    <td>25,860</td>
+                    <td style="color:var(--comp-orange);">$129.30</td>
+                    <td>$17.35</td>
+                    <td style="text-align:center;font-weight:700;color:var(--green);">18.0×</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td>757</td>
+                    <td style="color:var(--green);">$14.40</td>
+                    <td class="winner-cell">$0.95</td>
+                    <td>506</td>
+                    <td>42,718</td>
+                    <td style="color:var(--comp-orange);">$213.59</td>
+                    <td>$21.09</td>
+                    <td style="text-align:center;font-weight:700;color:var(--green);">22.2×</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <div class="insight-box winner">
+            <strong>Key Insight:</strong> Snowflake's fixed-cost model means the price:performance advantage
+            <em>increases</em> with concurrency — Athena scans more data as it runs more queries,
+            while Snowflake's M×4 MCW cost stays constant.
+        </div>
+    </div>
+
+    <div id="steady-state" class="tab-content">
+        <h2>Steady-State Throughput (QPS)</h2>
+        <p class="subtitle">Middle 40% of run — excludes ramp-up and ramp-down artifacts</p>
+
+        <div class="model-note">
+            <strong>Methodology:</strong> Steady-state QPS is measured from the middle 40% of the 20-minute run
+            (seconds 360–840). This excludes ramp-up (cold caches, connection setup) and ramp-down
+            (stragglers completing). CV% = coefficient of variation — lower means more stable throughput.
+        </div>
+
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:center;">Users</th>
+                    <th>Platform</th>
+                    <th>Run Key</th>
+                    <th>SS Seconds</th>
+                    <th>SS Queries</th>
+                    <th>SS QPS</th>
+                    <th>QPS StdDev</th>
+                    <th>CV%</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td style="color:var(--sf-blue);font-weight:600;">Snowflake</td>
+                    <td style="font-family:monospace;">3894695</td>
+                    <td>458</td>
+                    <td>5,609</td>
+                    <td style="font-weight:700;">12.25</td>
+                    <td>5.95</td>
+                    <td style="color:var(--comp-orange);">48.5%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>16</strong></td>
+                    <td style="color:var(--comp-orange);font-weight:600;">Athena</td>
+                    <td style="font-family:monospace;">3890401</td>
+                    <td>352</td>
+                    <td>1,378</td>
+                    <td style="font-weight:700;">3.91</td>
+                    <td>2.12</td>
+                    <td style="color:var(--red);">54.2%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td style="color:var(--sf-blue);font-weight:600;">Snowflake</td>
+                    <td style="font-family:monospace;">3894739</td>
+                    <td>455</td>
+                    <td>5,519</td>
+                    <td style="font-weight:700;">12.13</td>
+                    <td>5.71</td>
+                    <td style="color:var(--comp-orange);">47.1%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>32</strong></td>
+                    <td style="color:var(--comp-orange);font-weight:600;">Athena</td>
+                    <td style="font-family:monospace;">3890320</td>
+                    <td>449</td>
+                    <td>2,846</td>
+                    <td style="font-weight:700;">6.34</td>
+                    <td>3.25</td>
+                    <td style="color:var(--red);">51.3%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td style="color:var(--sf-blue);font-weight:600;">Snowflake</td>
+                    <td style="font-family:monospace;">3894722</td>
+                    <td>459</td>
+                    <td>5,503</td>
+                    <td style="font-weight:700;">11.99</td>
+                    <td>5.97</td>
+                    <td style="color:var(--comp-orange);">49.8%</td>
+                </tr>
+                <tr>
+                    <td style="text-align:center;"><strong>64</strong></td>
+                    <td style="color:var(--comp-orange);font-weight:600;">Athena</td>
+                    <td style="font-family:monospace;">3890404</td>
+                    <td>475</td>
+                    <td>3,431</td>
+                    <td style="font-weight:700;">7.22</td>
+                    <td>3.39</td>
+                    <td style="color:var(--comp-orange);">47.0%</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <div id="reference" class="tab-content">
+        <h2>Included Runs</h2>
+        <p class="subtitle">All benchmark runs used in this report. Verify run keys and dates before sharing.</p>
+
+        <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align:left;">Platform</th>
+                    <th style="text-align:left;">Format</th>
+                    <th>Users</th>
+                    <th style="text-align:left;">Run Key</th>
+                    <th style="text-align:left;">Run Date</th>
+                    <th style="text-align:left;">WH Type</th>
+                    <th>Total Queries</th>
+                    <th>GB Scanned</th>
+                    <th>Cost</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td><span style="color:var(--sf-blue);font-weight:600;">Snowflake</span></td>
+                    <td>Managed Iceberg</td>
+                    <td style="text-align:center;">16</td>
+                    <td style="font-family:monospace;">3894695</td>
+                    <td>2026-03-07</td>
+                    <td>GEN2</td>
+                    <td>15,089</td>
+                    <td>—</td>
+                    <td style="color:var(--green);">$14.40</td>
+                </tr>
+                <tr style="background:var(--comp-light);">
+                    <td><span style="color:var(--comp-orange);font-weight:600;">Athena</span></td>
+                    <td>Managed Iceberg</td>
+                    <td style="text-align:center;">16</td>
+                    <td style="font-family:monospace;">3890401</td>
+                    <td>2026-03-07</td>
+                    <td>Serverless</td>
+                    <td>4,365</td>
+                    <td>16,161 GB</td>
+                    <td style="color:var(--comp-orange);">$80.81</td>
+                </tr>
+                <tr>
+                    <td><span style="color:var(--sf-blue);font-weight:600;">Snowflake</span></td>
+                    <td>Managed Iceberg</td>
+                    <td style="text-align:center;">32</td>
+                    <td style="font-family:monospace;">3894739</td>
+                    <td>2026-03-07</td>
+                    <td>GEN2</td>
+                    <td>14,966</td>
+                    <td>—</td>
+                    <td style="color:var(--green);">$14.40</td>
+                </tr>
+                <tr style="background:var(--comp-light);">
+                    <td><span style="color:var(--comp-orange);font-weight:600;">Athena</span></td>
+                    <td>Managed Iceberg</td>
+                    <td style="text-align:center;">32</td>
+                    <td style="font-family:monospace;">3890320</td>
+                    <td>2026-03-07</td>
+                    <td>Serverless</td>
+                    <td>7,454</td>
+                    <td>25,860 GB</td>
+                    <td style="color:var(--comp-orange);">$129.30</td>
+                </tr>
+                <tr>
+                    <td><span style="color:var(--sf-blue);font-weight:600;">Snowflake</span></td>
+                    <td>Managed Iceberg</td>
+                    <td style="text-align:center;">64</td>
+                    <td style="font-family:monospace;">3894722</td>
+                    <td>2026-03-07</td>
+                    <td>GEN2</td>
+                    <td>15,132</td>
+                    <td>—</td>
+                    <td style="color:var(--green);">$14.40</td>
+                </tr>
+                <tr style="background:var(--comp-light);">
+                    <td><span style="color:var(--comp-orange);font-weight:600;">Athena</span></td>
+                    <td>Managed Iceberg</td>
+                    <td style="text-align:center;">64</td>
+                    <td style="font-family:monospace;">3890404</td>
+                    <td>2026-03-07</td>
+                    <td>Serverless</td>
+                    <td>10,129</td>
+                    <td>42,718 GB</td>
+                    <td style="color:var(--comp-orange);">$213.59</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p><strong>Report generated:</strong> March 10, 2026 | <strong>Format:</strong> Managed Iceberg</p>
+        <p><strong>Benchmark:</strong> TPC-DS 3TB BI Concurrency — 14 query types, 20-minute runs, 16/32/64 concurrent users</p>
+        <p><strong>SF Config:</strong> Medium ×4 MCW (4 clusters), Gen2, prod1 | 16 credits/hr × $2.70/credit = $14.40/20min</p>
+        <p><strong>Athena:</strong> Serverless, $5/TB scanned, Horizon catalog, us-west-2</p>
+        <p><strong>14 Queries:</strong> query03, query07, query19, query27, query42, query43, query52, query53, query55, query63, query68, query73, query89, query98</p>
+        <p style="margin-top:10px;font-size:0.9em;color:#999;">Generated by generate-concurrency-report.py | Data: concurrency-data.json</p>
+    </div>
+
+    
+    <script>
+    function showTab(tabId, btn) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        btn.classList.add('active');
+    }
+    function showSubTab(parentId, subId, btn) {
+        var parent = document.getElementById(parentId);
+        parent.querySelectorAll('.sub-tab-content').forEach(t => t.classList.remove('active'));
+        parent.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(subId).classList.add('active');
+        btn.classList.add('active');
+    }
+    </script>
+
+    <script>
+    // ── Throughput scaling ──
+    new Chart(document.getElementById('chart-qpm'), {
+        type: 'bar',
+        data: {
+            labels: ["16", "32", "64"],
+            datasets: [
+                {label: 'Snowflake', data: [754, 748, 757], backgroundColor: '#29B5E8', borderRadius: 4},
+                {label: 'Athena', data: [218, 373, 506], backgroundColor: '#FF9900', borderRadius: 4},
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {legend: {position: 'bottom'}, title: {display: false}},
+            scales: {
+                x: {title: {display: true, text: 'Concurrent Users'}},
+                y: {title: {display: true, text: 'Queries per Minute (QPM)'}, beginAtZero: true}
+            }
+        }
+    });
+
+    // ── P99 latency scaling ──
+    new Chart(document.getElementById('chart-p99-scaling'), {
+        type: 'bar',
+        data: {
+            labels: ["16", "32", "64"],
+            datasets: [
+                {label: 'Snowflake P99', data: [10.4, 18.0, 31.4], backgroundColor: '#29B5E8', borderRadius: 4},
+                {label: 'Athena P99', data: [26.7, 36.8, 132.1], backgroundColor: '#FF9900', borderRadius: 4},
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {legend: {position: 'bottom'}, title: {display: false}},
+            scales: {
+                x: {title: {display: true, text: 'Concurrent Users'}},
+                y: {title: {display: true, text: 'P99 Latency (seconds)'}, beginAtZero: true}
+            }
+        }
+    });
+
+    // ── Per-query P50 at 32u ──
+    new Chart(document.getElementById('chart-h2h-p50'), {
+        type: 'bar',
+        data: {
+            labels: ["query03", "query68", "query53", "query19", "query63", "query43", "query89", "query07", "query27", "query98", "query52", "query55", "query42", "query73"],
+            datasets: [
+                {label: 'Snowflake P50', data: [9.8, 10.31, 10.66, 10.85, 11.09, 11.2, 12.91, 13.46, 13.66, 9.9, 8.64, 8.69, 8.78, 9.34], backgroundColor: '#29B5E8', borderRadius: 4},
+                {label: 'Athena P50', data: [11.65, 11.65, 11.68, 11.64, 11.68, 11.66, 11.7, 11.67, 11.68, 8.22, 6.65, 6.64, 6.64, 6.66], backgroundColor: '#FF9900', borderRadius: 4},
+            ]
+        },
+        options: {
+            responsive: true,
+            indexAxis: 'y',
+            plugins: {legend: {position: 'bottom'}},
+            scales: {
+                x: {title: {display: true, text: 'P50 Latency (seconds)'}, beginAtZero: true},
+                y: {ticks: {font: {size: 11}}}
+            }
+        }
+    });
+
+    // ── Per-query P99 at 32u ──
+    new Chart(document.getElementById('chart-h2h-p99'), {
+        type: 'bar',
+        data: {
+            labels: ["query03", "query68", "query53", "query19", "query63", "query43", "query89", "query07", "query27", "query98", "query52", "query55", "query42", "query73"],
+            datasets: [
+                {label: 'Snowflake P99', data: [15.58, 17.89, 17.19, 15.87, 17.92, 18.29, 19.19, 20.49, 21.26, 13.26, 13.01, 13.11, 13.06, 12.0], backgroundColor: '#29B5E8', borderRadius: 4},
+                {label: 'Athena P99', data: [62.45, 16.69, 26.79, 67.66, 29.68, 39.7, 34.57, 34.51, 122.38, 13.43, 41.35, 11.69, 17.62, 16.58], backgroundColor: '#FF9900', borderRadius: 4},
+            ]
+        },
+        options: {
+            responsive: true,
+            indexAxis: 'y',
+            plugins: {legend: {position: 'bottom'}},
+            scales: {
+                x: {title: {display: true, text: 'P99 Latency (seconds)'}, beginAtZero: true},
+                y: {ticks: {font: {size: 11}}}
+            }
+        }
+    });
+    </script>
+
+</body>
+</html>
