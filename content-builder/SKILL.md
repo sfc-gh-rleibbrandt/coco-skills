@@ -1,17 +1,67 @@
 ---
 name: content-builder
-description: "Create professional Snowflake-branded presentations. Use when: user wants to create slides, build a presentation, make a deck, generate PPTX, or create Marp slides. Triggers: create presentation, build slides, make pptx, snowflake deck, create deck, presentation template."
+description: "Create professional branded presentations and content. Use when: user wants to create slides, build a presentation, make a deck, generate PPTX, create Marp slides, or use a specific brand style (Stripe, Apple, Linear, etc). Triggers: create presentation, build slides, make pptx, snowflake deck, create deck, presentation template, stripe style, apple style, brand style, design system."
 ---
 
 # Content Builder
 
-Create Snowflake-branded presentations in Marp (HTML/PDF) or PPTX format.
+Create branded presentations in Marp (HTML/PDF) or PPTX format.
 
 **Default format: Marp** - Use Marp unless user explicitly requests PPTX.
+**Default brand: Snowflake** - Use Snowflake unless user specifies another brand.
+
+## Available Brand Styles
+
+58 brand design systems available in `references/designs/`. Each contains full color palette, typography hierarchy, component patterns, layout principles, and do's/don'ts.
+
+| Category | Brands |
+|----------|--------|
+| **Default** | **snowflake** — SF Blue, Nunito Sans, clean data-focused |
+| **AI & LLM** | claude, cohere, cursor, elevenlabs, minimax, mistral.ai, ollama, opencode.ai, replicate, runwayml, together.ai, voltagent, x.ai |
+| **Developer Tools** | expo, lovable, raycast, superhuman, vercel, warp |
+| **Backend & DevOps** | clickhouse, composio, hashicorp, mongodb, posthog, sanity, sentry, supabase |
+| **Productivity & SaaS** | airtable, cal, intercom, linear.app, mintlify, notion, resend, zapier |
+| **Design & Creative** | clay, figma, framer, miro, webflow |
+| **Fintech & Crypto** | coinbase, kraken, revolut, stripe, wise |
+| **E-commerce & Retail** | airbnb, pinterest, spotify |
+| **Automotive** | bmw, ferrari, lamborghini, renault, tesla |
+| **Enterprise & Media** | apple, ibm, nvidia, spacex, uber |
+
+**Popular picks by use case:**
+- Premium fintech → **stripe** (purple gradients, weight-300 elegance)
+- Minimal product launch → **apple** (white space, SF Pro, cinematic)
+- Engineering updates → **linear.app** (ultra-precise, purple accent)
+- Developer docs → **vercel** (black and white, Geist font)
+- Warm editorial → **notion** or **claude** (serif headings, soft surfaces)
+- Luxury / automotive → **ferrari** or **lamborghini** (cinematic, restrained color)
+- Dark mode / developer → **supabase** or **cursor** (emerald/gradient on dark)
+
+## Style Recommendation Guide
+
+After gathering requirements in Step 1, recommend a brand style based on content signals:
+
+| Content Theme | Recommended Style | Why |
+|---------------|-------------------|-----|
+| Fintech, payments, pricing | **stripe** | Premium, authoritative, financial-grade |
+| Product launch, hardware, premium | **apple** | Cinematic restraint, product-as-hero |
+| Engineering updates, sprint reviews | **linear.app** | Precise, minimal, no fluff |
+| API docs, developer content, technical | **vercel** | Monochrome precision, code-forward |
+| Knowledge sharing, onboarding, wiki | **notion** | Warm, readable, approachable |
+| AI/ML, model demos, research | **claude** or **cursor** | Warm editorial or dark technical |
+| Open source, database, infra | **supabase** or **mongodb** | Developer-native, code-first |
+| Design review, creative pitch | **figma** | Vibrant, playful, multi-color |
+| Data analytics, metrics, dashboards | **posthog** | Data-dense, developer-friendly |
+| Automotive, luxury, physical product | **ferrari** or **tesla** | Cinematic, dramatic, restrained |
+| Consumer product, marketplace | **airbnb** or **spotify** | Warm/photography-driven or bold |
+| Crypto, trading, institutional | **coinbase** or **kraken** | Trust-focused or data-dense |
+| Internal Snowflake content | **snowflake** (default) | On-brand for anything internal |
+
+If the content doesn't clearly match a theme, default to **snowflake**.
+If the user already specified a brand, skip the recommendation.
 
 ## Setup
 
-**Load** `references/style_guide.md` for brand colors, typography, and layout patterns.
+**Load the selected brand's design file** from `references/designs/<brand>.md` for colors, typography, and layout patterns. If the user doesn't specify a brand, load `references/designs/snowflake.md`.
 
 ## Workflow
 
@@ -28,9 +78,16 @@ What presentation do you need?
 5. Brief outline or topic areas:
 ```
 
-**Note:** Default to Marp format. Only ask about format if user mentions PPTX or PowerPoint.
+**Note:** Default to Marp format and Snowflake brand. Only ask about format if user mentions PPTX or PowerPoint.
 
 **⚠️ STOP**: Wait for user input.
+
+**After user responds — recommend a brand style:**
+If the user didn't already specify a brand (e.g. "make it like Stripe"), use the Style Recommendation Guide above to suggest 1-2 options based on the content theme and audience. For example:
+
+> "Based on your content (API developer guide for external partners), I'd recommend the **vercel** style — monochrome, code-forward, precise. Or **stripe** if you want it to feel more premium. Want to go with one of these, or stick with Snowflake?"
+
+If the user already said "make it look like X" in their original request, skip the recommendation and load that brand directly.
 
 ### Step 2: Plan Slides
 

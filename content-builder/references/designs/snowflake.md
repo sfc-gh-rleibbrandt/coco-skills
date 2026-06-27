@@ -267,51 +267,15 @@ code {
 
 ## Tables
 
-### CRITICAL: Table Text Must Always Be Readable
-
-**Tables must have dark text on light backgrounds, regardless of the slide theme.** This applies to ALL themes including dark/Apple-style presentations. Tables are data — they need to be scannable. Never use white text in table cells.
-
-### Light Theme (Snowflake Branded — Default)
-
-#### Header Row
+### Header Row
 - Background: Gradient from `#11567F` to `#0D2C54`
 - Text: White, bold
 - Padding: 8px 10px
 
-#### Data Rows
+### Data Rows
 - Background: Alternating `#F8FCFE` / `#EDF5FB`
 - Text: `#1a1a1a`
 - Border: 1px solid `#D0E8F5`
-
-### Dark Theme (Apple-Style Presentations)
-
-When building dark-background slides, tables should be **light islands** — readable data blocks that contrast with the dark slide background.
-
-#### Header Row
-- Background: `#2C2C2E` (dark gray, not black)
-- Text: `#ffffff` (white) — headers are fine white-on-dark-gray
-- Padding: 10px 14px
-- Border-bottom: 1px solid `#444`
-
-#### Data Rows
-- Background: `#1C1C1E` (slightly lighter than slide bg)
-- Text: `rgba(255,255,255,0.9)` (near-white) — readable on dark gray
-- Border-bottom: 1px solid `#333`
-
-#### Marp CSS for Dark Theme Tables
-```css
-table { font-size: 0.78em; width: 100%; border-collapse: collapse; }
-th { background: #2C2C2E; color: #ffffff; padding: 10px 14px;
-     text-align: left; font-weight: 600; border-bottom: 1px solid #444; }
-td { padding: 10px 14px; border-bottom: 1px solid #333;
-     color: rgba(255,255,255,0.9); }
-```
-
-#### NEVER DO THIS:
-- ❌ `th { color: #ffffff; }` with `th { background: #ffffff; }` — invisible
-- ❌ `td { color: #ffffff; }` with no background override — white text on white chart images
-- ❌ Global `color: #ffffff` that bleeds into table cells when charts have white backgrounds
-- ❌ Tables with more than 8-10 rows on dark backgrounds — split across slides instead
 
 ### Column Widths
 Adjust based on content. Example:
